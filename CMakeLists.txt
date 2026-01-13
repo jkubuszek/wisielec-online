@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include_directories(include)
 
 set(SHARED_SOURCES
+
 )
 
 set(SERVER_SOURCES

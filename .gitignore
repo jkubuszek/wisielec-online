@@ -7,6 +7,10 @@ build/
 merge_repo.sh
 full_code.txt
 ahdt*
+tcp*
+users.txt
+users.csv
+
 
 # Object files
 *.o
