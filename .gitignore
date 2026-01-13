@@ -1,6 +1,13 @@
 # Prerequisites
 *.d
 
+#my
+daytime*
+build/
+merge_repo.sh
+full_code.txt
+ahdt*
+
 # Object files
 *.o
 *.ko
