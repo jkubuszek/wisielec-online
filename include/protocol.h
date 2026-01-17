@@ -11,7 +11,8 @@
 
 /// @brief all of the message types that can be sent or received
 typedef enum {
-    MSG_LOGIN,      
+    MSG_LOGIN,  
+    MSG_REGISTER,    
     MSG_GUESS,      
     MSG_RESPONSE,   
     MSG_ERROR,      

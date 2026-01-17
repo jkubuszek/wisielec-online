@@ -9,8 +9,10 @@
 
 typedef struct{
     char word[32];
-    char mask[32]
-}GameSession;
+    char mask[32];
+} GameSession;
+
+void print_help();
 
 /// @brief sigchild handler
 /// @param signo signal number, passed by linux kernel
@@ -26,11 +28,17 @@ void sig_pipe(int signo);
 /// @return returns 1 if comepleted succesfully, -1 if encountered an error
 int process_guess(GameSession session, char letter);
 
+/// @brief function used to register a new player
+/// @param username 32 byte char array used for storing the username
+/// @param password 32 byte char array used for storing the password
+/// @return error code: 1 if success, 0 if user already exists, -1 if unsupported characters used, -2 if server error
+int register_player(const char *username, const char *password);
+
 /// @brief function used for authentication
 /// @param username 32 byte char array used for storing the username
 /// @param password 32 byte char array used for storing the password
 /// @return error code: 1 if completed succesfully, 0 if authentication failed, -1 if an error occured
-int authenticate_player(const char username, char password);
+int authenticate_player(const char *username, const char *password);
 
 /// @brief function used for taking care of 1 player
 /// @param player_socket socket number the player is connected to

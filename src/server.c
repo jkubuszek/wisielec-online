@@ -14,9 +14,10 @@
 #include 	    <unistd.h>
 #include        <signal.h>
 #include        <wait.h>
-#include    "protocol.h"
-#include    "server.h"
+#include        "protocol.h"
+#include        "server.h"
 
+#define DB_FILE "users.csv"
 #define LISTENQ 10
 #define MAXLINE 1024
 
@@ -33,23 +34,74 @@ void sig_pipe(int signo){
 	exit(1);
 }
 
-int authenticate_player(const char username, const char password){
+int register_player(const char *username, const char *password) {
+    FILE *file;
+    char line[256];
+    char *token;
 
-    FILE *file = fopen("users.csv", "r");
-    
+    //reject ';' and '\n'
+    if (strchr(username, ';') || strchr(password, ';') || 
+        strchr(username, '\n') || strchr(password, '\n')) {
+        return -1;      
+    }
+    file = fopen(DB_FILE, "r");
+
+    //check for duplicates
+    if (file) {
+        while (fgets(line, sizeof(line), file)) {
+            char line_copy[256];
+            strcpy(line_copy, line);
+           
+            token = strtok(line_copy, ";");
+            
+            if (token != NULL) {
+                if (strcmp(token, username) == 0) {
+                    fclose(file);
+                    return 0; 
+                }
+            }
+        }
+        fclose(file);
+    }
+
+    file = fopen(DB_FILE, "a");
     if (file == NULL) {
-        perror("ERROR: couldn't open/find users.csv");
+        perror("Couldn't write to users database");
+        return -2;
+    }
+
+    fprintf(file, "%s;%s\n", username, password);
+
+    fflush(file);
+    fclose(file);
+    return 1; 
+}
+
+int authenticate_player(const char *username, const char *password) {
+    FILE *file = fopen(DB_FILE, "r");
+    if (file == NULL) {
+        perror("ERROR: couldn't open/find users database");
         return 0; 
     }
 
-    char file_user[MAX_LEN];
-    char file_pass[MAX_LEN];
-    int auth_success = 0; 
+    char line[256];
+    int auth_success = 0;
 
-    while (fscanf(file, "%31s;%31s", file_user, file_pass) == 2) {
-        if (strcmp(username, file_user) == 0 && strcmp(password, file_pass) == 0) {
-            auth_success = 1;
-            break; 
+    while (fgets(line, sizeof(line), file)) {
+
+        // delete \n if found
+        line[strcspn(line, "\n")] = 0;
+        // getting login
+        char *token_user = strtok(line, ";");
+        // getting password
+        char *token_pass = strtok(NULL, ";");
+
+        // authentication
+        if (token_user != NULL && token_pass != NULL) {
+            if (strcmp(username, token_user) == 0 && strcmp(password, token_pass) == 0) {
+                auth_success = 1;
+                break; 
+            }
         }
     }
 
@@ -62,6 +114,50 @@ int process_guess(GameSession session, char letter){
 }
 
 void handle_client(int connfd) {
+    GameMessage msg;
+    
+    printf("Waiting for data from client...\n");
+
+    while (recv(connfd, &msg, sizeof(msg), 0) > 0) {
+        GameMessage response;
+        memset(&response, 0, sizeof(response));
+
+        if (msg.type == MSG_LOGIN) {
+            printf("Logging in: %s\n", msg.username);
+            if (authenticate_player(msg.username, msg.password)) {
+                response.type = MSG_RESPONSE;
+                strcpy(response.message_text, "Logged in successfully.");
+               //game here
+            } else {
+                response.type = MSG_ERROR;
+                strcpy(response.message_text, "Incorrect login details.");
+                printf("Login of player %s failed.\n", msg.username);
+            }
+        } 
+        else if (msg.type == MSG_REGISTER) {
+            printf("Registration: %s\n", msg.username);
+            int res = register_player(msg.username, msg.password);
+            if (res == 1) {
+                response.type = MSG_RESPONSE;
+                strcpy(response.message_text, "Account created, now you can log in.");
+            } else if (res == 0) {
+                response.type = MSG_ERROR;
+                strcpy(response.message_text, "This username is already taken, try a different one.");
+            } else {
+                response.type = MSG_ERROR;
+                strcpy(response.message_text, "Registration error, you probably used ';' or '\n', try without them.");
+            }
+        }
+        else if (msg.type == MSG_EXIT) {
+            printf("Player %s disconnected.\n", msg.username);
+            break;
+        }
+
+        
+        send(connfd, &response, sizeof(response), 0);
+    }
+    
+    close(connfd);
 }
 
 int main(int argc, char **argv)
@@ -77,6 +173,10 @@ int main(int argc, char **argv)
                 return 1;
         }
 
+        int on = 1;               
+        if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0){
+            fprintf(stderr,"SO_REUSEADDR setsockopt error : %s\n", strerror(errno));
+        }
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr   = htonl(INADDR_ANY);
