@@ -7,11 +7,13 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include_directories(include)
 
 set(SHARED_SOURCES
-
+    src/net.c
 )
 
 set(SERVER_SOURCES
     src/server.c
+    src/auth.c
+    src/game.c
     ${SHARED_SOURCES}
 )
 

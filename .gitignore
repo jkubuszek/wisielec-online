@@ -10,7 +10,8 @@ ahdt*
 tcp*
 users.txt
 users.csv
-
+schowek.txt
+echo*
 
 # Object files
 *.o

@@ -14,8 +14,9 @@
 #include 	    <unistd.h>
 #include        <signal.h>
 #include        <wait.h>
-#include        "protocol.h"
 #include        "server.h"
+#include        "game.h"
+#include        "net.h"
 
 #define MAX_INPUT 256
 #define MAXLINE 1024
@@ -36,7 +37,8 @@ main(int argc, char **argv)
 	struct sockaddr_in	servaddr;
 	char				recvline[MAXLINE + 1];
 	int err;
-    GameMessage msg, response;
+    char msg[1024];
+    char response[1024];
     char input_line[MAX_INPUT];
     char command[32];
     char arg1[32];
@@ -86,22 +88,40 @@ main(int argc, char **argv)
                 printf("Error: usage: login <username> <password>\n");
                 continue;
             }
-            msg.type = MSG_LOGIN;
-            strncpy(msg.username, arg1, 31);
-            strncpy(msg.password, arg2, 31);
+            Login *p = (Login*)msg;
+
+            strncpy(p->username, arg1, 31);
+            strncpy(p->password, arg2, 31);
+
+            if(send_packet(sockfd, MSG_LOGIN, &msg, sizeof(msg)) < 0){
+                printf("Send failed");
+            }
+
         }
         else if (strcmp(command, "register") == 0) {
             if (parsed < 3) {
                 printf("Error: usage: register <username> <password>\n");
                 continue;
             }
-            msg.type = MSG_REGISTER;
-            strncpy(msg.username, arg1, 31);
-            strncpy(msg.password, arg2, 31);
+
+            Login *p = (Login*)msg;
+
+            strncpy(p->username, arg1, 31);
+            strncpy(p->password, arg2, 31);
+
+            if(send_packet(sockfd, MSG_REGISTER, &msg, sizeof(msg)) < 0){
+                printf("Send failed");
+            }
+
+            // msg.type = MSG_REGISTER;
+            // strncpy(msg.username, arg1, 31);
+            // strncpy(msg.password, arg2, 31);
         }
-        else if (strcmp(command, "exit") == 0 || strcmp(command, "quit") == 0) {
-            msg.type = MSG_EXIT;
-            send(sockfd, &msg, sizeof(msg), 0);
+        else if (strcmp(command, "exit") == 0 || strcmp(command, "quit") == 0) { 
+            // send(sockfd, &msg, sizeof(msg), 0);
+            if(send_packet(sockfd, MSG_EXIT, NULL, 0) < 0){
+                printf("Send failed");
+            }
             break; 
         }
         else if (strcmp(command, "help") == 0) {
@@ -113,20 +133,19 @@ main(int argc, char **argv)
             continue;
         }
         
-        if (send(sockfd, &msg, sizeof(msg), 0) == -1) {
-            perror("Send failed");
-            break;
-        }
+        // if (send(sockfd, &msg, sizeof(msg), 0) == -1) {
+        //     perror("Send failed");
+        //     break;
 
-        if (recv(sockfd, &response, sizeof(response), 0) > 0) {
-            if (response.type == MSG_RESPONSE) {
-                printf("[OK] %s\n", response.message_text);                
-            } else if (response.type == MSG_ERROR) {
-                printf("[ERROR] %s\n", response.message_text);
+        int type;
+        if ((type = recv_packet(sockfd, response, sizeof(response))) > 0) {
+            switch(type){
+                case MSG_TEXT:
+                printf("Server: %s\n", response);                
+                break;
             }
         } else {
             printf("Server disconnected.\n");
-            break;
         }
         
     }
