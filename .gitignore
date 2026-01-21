@@ -12,7 +12,8 @@ users.txt
 users.csv
 schowek.txt
 echo*
-nf*
+srvr*
+clie*
 
 # Object files
 *.o

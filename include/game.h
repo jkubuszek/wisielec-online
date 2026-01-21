@@ -17,13 +17,14 @@
 typedef enum {
     MSG_LOGIN = 1,
     MSG_REGISTER = 2,
-    MSG_SET_WORD = 3,
+    MSG_WORD = 3,
     MSG_GUESS = 4,
     MSG_GAME_STATE = 5,  
     MSG_TEXT = 6,        
     MSG_PROMPT = 7,
     MSG_EXIT = 8,
-    MSG_ERROR = 9   
+    MSG_ERROR = 9,
+    MSG_GAME_START = 10
 } MessageType;
 
 // this is similar to GameSate, but it's for server only
@@ -69,6 +70,7 @@ typedef struct {
 typedef struct {
     int id;                 // room id
     int players[2];  // player sockets in this room
+    // int usernames[2][32]; // players' usernames
     GameSession game;    // game state in this room
     int current_setter;     // who is setting the word
     int state;        // 0 - waiting, 1 - setting the word, 2 - guessing
@@ -80,11 +82,13 @@ extern GameRoom rooms[MAX_ROOMS];
 
 int handle_client_message(int sock);
 
+int handle_server_message();
+
 void reset_round(GameRoom *room);
 
 /// @brief setting room objects to default
-void init_server_state();
+void init_server();
 
 void assign_to_room(int sock);
 
-void cleanup_socket(int sock, int epollfd);
+void cleanup_socket(int sock, int efd);

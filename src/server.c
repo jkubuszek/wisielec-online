@@ -33,6 +33,7 @@ GameRoom rooms[50];
 
 int main(int argc, char **argv)
 {
+    init_server();
 	int				listenfd, connfd;
     char				buff[MAXLINE], str[INET_ADDRSTRLEN+1];
 	socklen_t			len;
@@ -67,7 +68,7 @@ int main(int argc, char **argv)
             fprintf(stderr,"listen error : %s\n", strerror(errno));
             return 1;
     }
-    ev.events = EPOLLIN; // Czekaj na dane (połączenia)
+    ev.events = EPOLLIN; 
     ev.data.fd = listenfd;
     
     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listenfd, &ev) == -1){
@@ -77,16 +78,7 @@ int main(int argc, char **argv)
 
 	fprintf(stderr,"Waiting for clients ... \n");
 	for ( ; ; ) {
-		// len = sizeof(cliaddr);
-        // 	if ( (connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &len)) < 0){
-        //         	fprintf(stderr,"accept error : %s\n", strerror(errno));
-        //         	continue;
-        // 	}
-
-		// bzero(str, sizeof(str));
-	   	// inet_ntop(AF_INET, (struct sockaddr  *) &cliaddr.sin_addr,  str, sizeof(str));
-		// printf("Connection from %s  \n", str);
-        
+		
         int n = epoll_wait(epollfd, events, MAXEVENTS, -1);
         for(int i=0; i<n; i++) {
             int currfd = events[i].data.fd;
@@ -99,14 +91,14 @@ int main(int argc, char **argv)
                 if (epoll_ctl(epollfd, EPOLL_CTL_ADD, connfd, &ev) == -1){
                     fprintf(stderr,"listen error : %s\n", strerror(errno));
                     return 1;
-	            } else {
-                    printf("Client connected on socket %d", connfd);
-                    assign_to_room(connfd);
+	             }
+                else {
+                    printf("Client connected on socket %d\n", connfd);
+                    // assign_to_room(connfd);
                 }
             } else {
                 if (handle_client_message(currfd) == -1) {
                     cleanup_socket(currfd, epollfd);
-                    epoll_ctl(epollfd, EPOLL_CTL_DEL, currfd, NULL);
                 }
             }
         }
