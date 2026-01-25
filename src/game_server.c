@@ -1,14 +1,14 @@
-#include "game.h"
-#include "net.h"
-#include "auth.h"
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/epoll.h>
-#include <sys/select.h>
+#include <ctype.h>
+#include "game_server.h"
+#include "net.h"
+#include "auth.h"
 
 #define MAX_FD 1024
+
 
 
 int socket_to_room[MAX_FD];
@@ -27,10 +27,11 @@ void init_server(){
         socket_to_room[i] = -1;
     }
 }
-void reset_room(GameRoom *room){
+void reset_round(GameRoom *room){
     memset(room->game.word, 0, 32);
     memset(room->game.mask, 0, 32);
-    room->game.lives = 6;
+    memset(room->letters_used, 0, 32);
+    room->game.lives = 8;
     room->state = 1; 
 }
 void assign_to_room(int sock) {
@@ -44,9 +45,9 @@ void assign_to_room(int sock) {
         p0 = rooms[i].players[0];
         p1 = rooms[i].players[1];
 
-        //look for a waiting player
+        // look for a waiting player
         if((p0 == 0 && p1 != 0) || (p0 != 0 && p1 ==0)){
-            slot = (rooms[i].players[0] == 0) ? 0 : 1; //slot = 0 means first player in the room, setter
+            slot = (rooms[i].players[0] == 0) ? 0 : 1; // slot = 0 means first player in the room, setter
             rooms[i].players[slot] = sock;
             joined_room = i;
             break;
@@ -57,7 +58,7 @@ void assign_to_room(int sock) {
             p0 = rooms[i].players[0];
             p1 = rooms[i].players[1];
 
-            //look for an empty room
+            // look for an empty room
             if(p0 == 0 && p1 == 0){
                 slot = 0;
                 rooms[i].players[slot] = sock;
@@ -85,7 +86,6 @@ void assign_to_room(int sock) {
 
 
             // char setter_name[32] = socket_to_name[rooms[i].players[setter_slot]];
-
             // char setter_name[32]; 
             // strncpy(setter_name, socket_to_name[p0], 31);
             // setter_name[31] = '\0';
@@ -150,7 +150,7 @@ void cleanup_socket(int sock, int efd) {
         // for(int i = 0; i < MAX_ROOMS; i++) { 
         for(int i = 0; i < MAX_ROOMS && !match; i++){// check all the rooms 
             //if there is a player waiting in a room
-            if((rooms[i].players[1] == 0) && (rooms[i].players[0] != opp_sock)){
+            if((rooms[i].players[1] == 0) && (rooms[i].players[0] != 0) && (rooms[i].players[0] != opp_sock)){
                 // rooms[r_idx].players[1] == rooms[i].players[0];
                 // socket_to_room[rooms[r_idx].players[1]] = r_idx;
                 send_text(opp_sock, "We have found an opponent for you waiting in a different room!");
@@ -208,7 +208,7 @@ int handle_client_message(int sock) {
             } else { 
                 send_text(sock, "Registration error");
             }
-        return 0;
+        return 0; 
         }
 
         case MSG_EXIT:
@@ -232,7 +232,14 @@ int handle_client_message(int sock) {
     if (room->state == 1 && type == MSG_WORD) {
         if (p_idx == room->current_setter) {
             Word *p = (Word*)buffer;
-            strcpy(room->game.word, p->word);
+            
+            int len = strlen(p->word);
+            for(int i = 0; i < len; i++){
+                 room->game.word[i] = tolower(p->word[i]);
+            }
+
+            room->game.word[len] = '\0';
+            // strcpy(room->game.word, p->word);
             
             
             int word_len = strlen(room->game.word);
@@ -240,17 +247,20 @@ int handle_client_message(int sock) {
                  room->game.mask[i] = '_';
             }
             room->game.mask[word_len] = 0; //null terminator
-            room->game.lives = 6;
+            room->game.lives = 8;
             
             room->state = 2; 
             
-            send_text(sock, "Word accepted, now, the opponent starts guessing.");
             
-            // Info dla zgadującego
+            // info for the guesser
             GameState state;
             strcpy(state.word_mask, room->game.mask);
-            state.lives = 6; 
-            state.max_lives = 6;
+            state.lives = 8; 
+            state.max_lives = 8;
+            strcpy(state.letters, room->letters_used);
+
+            send_packet(sock, MSG_GAME_STATE, &state, sizeof(state));
+            send_text(sock, "Word accepted, now, the opponent starts guessing.");
             send_packet(opp_sock, MSG_GAME_STATE, &state, sizeof(state));
             send_text(opp_sock, "Your opponent has set the word. Now, start guessing!");
         }
@@ -269,6 +279,17 @@ int handle_client_message(int sock) {
             if (!hit){
                 room->game.lives--;
             }
+
+            GameState state;
+            if(strlen(room->letters_used) < 31){
+                room->letters_used[strlen(room->letters_used)] = g;
+            }
+            strcpy(state.word_mask, room->game.mask);
+            state.lives = room->game.lives;
+            state.max_lives = 8;
+            strcpy(state.letters, room->letters_used);
+            send_packet(sock, MSG_GAME_STATE, &state, sizeof(state));
+            send_packet(opp_sock, MSG_GAME_STATE, &state, sizeof(state));
 
             int won = (strcmp(room->game.word, room->game.mask) == 0);
             int lost = (room->game.lives <= 0);
@@ -298,17 +319,9 @@ int handle_client_message(int sock) {
                 send_text(new_setter, "Now it is your turn to set the secret word:");
                 send_packet(new_setter, MSG_PROMPT, NULL, 0); 
                 send_text(new_guesser, "Wait for the opponent to set the secret word...");
-
-            } else {
-                GameState state;
-                strcpy(state.word_mask, room->game.mask);
-                state.lives = room->game.lives;
-                state.max_lives = 6;
-                send_packet(sock, MSG_GAME_STATE, &state, sizeof(state));
                 
-                char msg[64]; sprintf(msg, "Opponent is guessing: %c (%s)", g, hit ? "hit" : "miss");
-                send_text(opp_sock, msg);
-            }
+
+            } 
         }
     }
 
@@ -318,9 +331,3 @@ int handle_client_message(int sock) {
 
 
 
-void reset_round(GameRoom *room) {
-    memset(room->game.word, 0, 32);
-    memset(room->game.mask, 0, 32);
-    room->game.lives = 6;
-    room->state = 1; 
-}

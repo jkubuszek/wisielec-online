@@ -1,24 +1,17 @@
-#include        <sys/types.h>   /* basic system data types */
-#include        <sys/socket.h>  /* basic socket definitions */
-#include        <sys/time.h>    /* timeval{} for select() */
-#include        <time.h>                /* timespec{} for pselect() */
-#include        <netinet/in.h>  /* sockaddr_in{} and other Internet defns */
-#include        <arpa/inet.h>   /* inet(3) functions */
+#include        <sys/types.h>   
+#include        <sys/socket.h>  
+#include        <time.h>                
+#include        <netinet/in.h>  
+#include        <arpa/inet.h>   
 #include        <errno.h>
-#include        <fcntl.h>               /* for nonblocking */
-#include        <netdb.h>
-#include        <signal.h>
 #include        <stdio.h>
 #include        <stdlib.h>
 #include        <string.h>
 #include 	    <unistd.h>
-#include        <signal.h>
-#include        <wait.h>
 #include        <sys/epoll.h>
 #include        "net.h"
-#include        "server.h"
 #include        "auth.h"
-#include        "game.h"
+#include        "game_server.h"
 
 #define DB_FILE "users.csv"
 #define LISTENQ 10

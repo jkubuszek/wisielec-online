@@ -4,88 +4,27 @@
 #include        <netinet/in.h>
 #include        <arpa/inet.h>
 #include        <errno.h>
-#include        <fcntl.h>
-#include        <netdb.h>
-#include        <signal.h>
 #include        <stdio.h>
-#include        <stdlib.h>
 #include        <string.h>
 #include 	    <unistd.h>
 #include        <sys/select.h>
-#include        "server.h"
-#include        "game.h"
+#include        "game_client.h"
 #include        "net.h"
 
 #define MAX_INPUT 256
 #define MAXLINE 1024
 #define SA      struct sockaddr
 
-void print_help() {
-    printf("\nAvailable actions:\n");
-    printf("  login <username> <password>    - Log in to the game\n");
-    printf("  register <username> <password> - Create an account\n");
-    printf("  exit                           - Exit the game\n");
-    printf("  help                           - Display this help page\n");
-}
-
-// Zmieniono typ zwracany na int (1 - sukces, 0 - błąd/EOF)
-int get_input(char *buffer, int size) {
-    if (fgets(buffer, size, stdin) != NULL) {
-        size_t len = strlen(buffer);
-        if (len > 0 && buffer[len-1] == '\n') {
-            buffer[len-1] = '\0';
-        }
-        return 1;
-    }
-    return 0;
-}
-
-int handle_server_message(int sockfd, int *game_started) {
-    char response[1024];
-    int type = recv_packet(sockfd, response, sizeof(response));
-    
-    if (type <= 0) {
-        printf("Server disconnected or error.\n");
-        return -1;
-    }
-
-    switch(type){
-        case MSG_TEXT:
-            printf("server: %s\n", response);
-            break;
-        
-        case MSG_GAME_START:
-            *game_started = 1;
-            break;
-
-        case MSG_GAME_STATE: 
-            GameState *state = (GameState*)response;
-            system("clear");
-            printf("\n--- GAME STATUS ---\n");
-            printf("Secret word: %s\n", state->word_mask);
-            printf("Lives left: %d / %d\n", state->lives, state->max_lives);
-            printf("-------------------\n");
-            
-            // if (state->lives > 0) {
-            //     printf("Guess: ");
-            // }
-            break;
-            
-        case MSG_PROMPT:
-            break;
-    }
-    return 0;
-}
 
 int main(int argc, char **argv)
 {
-	int					sockfd, err;
+    int					sockfd, err;
 	struct sockaddr_in	servaddr;
     char msg[1024];
     
     fd_set readfds;
     int max_sd;
-
+    
     if (argc != 2){
 		fprintf(stderr, "ERROR: usage: %s <IPaddress>\n", argv[0]);
 		return 1;

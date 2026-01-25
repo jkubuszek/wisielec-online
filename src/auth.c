@@ -1,10 +1,8 @@
-#include        <stdlib.h>
 #include        <string.h>
 #include        <stdio.h>
-#include        <sys/types.h>   /* basic system data types */
 #include "auth.h"
 
-#define DB_FILE "users.csv"
+#define DB_FILE "../users.csv"
 
 int register_player(const char *username, const char *password) {
     FILE *file;
@@ -18,7 +16,7 @@ int register_player(const char *username, const char *password) {
     }
     file = fopen(DB_FILE, "r");
 
-    //check for duplicates
+    // check for duplicates
     if (file) {
         while (fgets(line, sizeof(line), file)) {
             char line_copy[256];
@@ -58,6 +56,8 @@ int authenticate_player(const char *username, const char *password) {
 
     char line[256];
     int auth_success = 0;
+
+    
 
     while (fgets(line, sizeof(line), file)) {
 

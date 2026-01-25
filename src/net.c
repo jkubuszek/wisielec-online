@@ -1,13 +1,7 @@
 #include "net.h"
-#include "game.h"
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <arpa/inet.h>
-#include <unistd.h>
-#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <errno.h>
 
 
 int send_packet(int sock, uint8_t type, const void *data, uint16_t data_len) {
