@@ -35,65 +35,92 @@ void reset_room(GameRoom *room){
 }
 void assign_to_room(int sock) {
     char msg[256];
+    int joined_room = -1;
+    int slot = -1;
+    int p0 = -1;
+    int p1 = -1;
 
     for(int i=0; i<MAX_ROOMS; i++) { // check all the rooms 
-        //if there is a player waiting in a room
-        if (rooms[i].players[0] == 0 || rooms[i].players[1] == 0) {
-            int slot = (rooms[i].players[0] == 0) ? 0 : 1; //slot = 0 means first player in the room, setter
+        p0 = rooms[i].players[0];
+        p1 = rooms[i].players[1];
+
+        //look for a waiting player
+        if((p0 == 0 && p1 != 0) || (p0 != 0 && p1 ==0)){
+            slot = (rooms[i].players[0] == 0) ? 0 : 1; //slot = 0 means first player in the room, setter
             rooms[i].players[slot] = sock;
-            socket_to_room[sock] = i;
-            
-            printf("Player %s (socket %d) joined room %d (slot %d)\n", socket_to_name[sock], sock, i, slot);
-
-            snprintf(msg, sizeof(msg), "You have joined room %d, slot %d", i, slot);
-            send_text(sock, msg);
+            joined_room = i;
+            break;
         }
-        /// start game if full
-        if (rooms[i].players[0] && rooms[i].players[1]) {
-            rooms[i].state = 1;
-            rooms[i].current_setter = 0;
-            reset_round(&rooms[i]);
+    }
+    if(joined_room == -1){
+        for(int i=0; i<MAX_ROOMS; i++) { // check all the rooms 
+            p0 = rooms[i].players[0];
+            p1 = rooms[i].players[1];
 
-            int setter_slot = rooms[i].current_setter;
+            //look for an empty room
+            if(p0 == 0 && p1 == 0){
+                slot = 0;
+                rooms[i].players[slot] = sock;
+                joined_room = i;
+                break;
+            }
+        }
+    }
+    
+    
+    if(joined_room != -1){
+        socket_to_room[sock] = joined_room;     
+        p0 = rooms[joined_room].players[0];
+        p1 = rooms[joined_room].players[1];           
+        printf("Player %s (socket %d) joined room %d (slot %d)\n", socket_to_name[sock], sock, joined_room, slot);
+
+        snprintf(msg, sizeof(msg), "You have joined room %d, slot %d", joined_room, slot);
+        send_text(sock, msg);
+    
+        /// start game if full and not already going
+        if (p0 && p1 && (rooms[joined_room].state == 0)) {
+            rooms[joined_room].state = 1;
+            rooms[joined_room].current_setter = 0; //p0 is setter
+            reset_round(&rooms[joined_room]);
+
 
             // char setter_name[32] = socket_to_name[rooms[i].players[setter_slot]];
 
-            char setter_name[32]; 
-            strncpy(setter_name, socket_to_name[rooms[i].players[setter_slot]], 31);
-            setter_name[31] = '\0';
+            // char setter_name[32]; 
+            // strncpy(setter_name, socket_to_name[p0], 31);
+            // setter_name[31] = '\0';
 
             snprintf(msg, sizeof(msg), "Your room is full. Game starts now - %s vs %s .\n"
-            "This round, the setter is %s.", socket_to_name[rooms[i].players[0]],
-            socket_to_name[rooms[i].players[1]] , setter_name);
+            "This round, the setter is %s.", socket_to_name[p0],
+            socket_to_name[p1] , socket_to_name[p0]);
 
-            send_text(rooms[i].players[setter_slot], msg);
-            send_text(rooms[i].players[!setter_slot], msg);
+            send_text(p0, msg);
+            send_text(p1, msg);
 
-            send_packet(rooms[i].players[0], MSG_GAME_START, NULL, 0);
-            send_packet(rooms[i].players[1], MSG_GAME_START, NULL, 0);
-
-            send_text(rooms[i].players[setter_slot], "Set the secret word now.");
-            send_packet(rooms[i].players[setter_slot], MSG_PROMPT, NULL, 0);
-            send_text(rooms[i].players[!setter_slot], "Wait for the opponent to set the secret word...");
+            send_packet(p0, MSG_GAME_START, NULL, 0);
+            send_packet(p1, MSG_GAME_START, NULL, 0);
+            
+            send_text(p0, "Set the secret word now.");
+            send_packet(p0, MSG_PROMPT, NULL, 0);
+            send_text(p1, "Wait for the opponent to set the secret word...");
         } else {
             send_text(sock, "Waiting for another player to join...");
         }
-        return;
-        
-    }
+    } else {
     send_text(sock, "Server is full.");
     close(sock);
+    }
 }
-
 
 
 void cleanup_socket(int sock, int efd) {
     int r_idx = socket_to_room[sock];
+    int opp_sock;
+    int single = 0;
     if (r_idx != -1) {
         GameRoom *r = &rooms[r_idx];
         int p_idx = (r->players[0] == sock) ? 0 : 1;
-        int opp_sock = r->players[p_idx == 0 ? 1 : 0];
-        
+        opp_sock = r->players[p_idx == 0 ? 1 : 0];
         r->players[p_idx] = 0;
         socket_to_room[sock] = -1;
         
@@ -101,10 +128,9 @@ void cleanup_socket(int sock, int efd) {
             char msg[256];
             snprintf(msg, sizeof(msg), "Oponnent %s disconnected, waiting for a new player to join...", socket_to_name[sock]);
             send_text(opp_sock, msg);
-            r->state = 0;
-        } else {
-            r->state = 0;
-        }
+            single = opp_sock;
+        } 
+        r->state = 0;
     }
     epoll_ctl(efd, EPOLL_CTL_DEL, sock, NULL);
     close(sock);
@@ -115,6 +141,26 @@ void cleanup_socket(int sock, int efd) {
         memset(socket_to_name[sock], 0, 32);
     }
 
+    // int waiting_players[MAX_ROOMS];
+    if(single){
+        int match = 0;
+        rooms[r_idx].players[0] = opp_sock;
+        rooms[r_idx].players[1] = 0;
+
+        // for(int i = 0; i < MAX_ROOMS; i++) { 
+        for(int i = 0; i < MAX_ROOMS && !match; i++){// check all the rooms 
+            //if there is a player waiting in a room
+            if((rooms[i].players[1] == 0) && (rooms[i].players[0] != opp_sock)){
+                // rooms[r_idx].players[1] == rooms[i].players[0];
+                // socket_to_room[rooms[r_idx].players[1]] = r_idx;
+                send_text(opp_sock, "We have found an opponent for you waiting in a different room!");
+                send_text(rooms[i].players[0], "We are moving you to a different room with a waiting player.");
+                assign_to_room(rooms[i].players[0]);
+                rooms[i].players[0] = 0;
+                match = 1;
+            }
+        }
+    }
 }
 
 int handle_client_message(int sock) {
@@ -144,7 +190,7 @@ int handle_client_message(int sock) {
                 socket_to_name[sock][31] = '\0'; 
                 snprintf(msg, sizeof(msg), "Logged in as %s.", p->username);
                 send_text(sock, msg);
-                printf("Player %s logged in", p->username);
+                printf("Player %s logged in\n", p->username);
                 assign_to_room(sock);
             } else {
                 send_text(sock, "Login error.");
