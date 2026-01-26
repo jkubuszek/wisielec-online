@@ -13,12 +13,12 @@ set(SHARED_SOURCES
 set(SERVER_SOURCES
     src/server.c
     src/auth.c
-    src/game_server.c
+    src/server_utils.c
     ${SHARED_SOURCES}
 )
 
 set(CLIENT_SOURCES
-    src/game_client.c
+    src/client_utils.c
     src/client.c
     ${SHARED_SOURCES}
 )

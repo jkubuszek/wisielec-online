@@ -1,8 +1,11 @@
-#include        <string.h>
-#include        <stdio.h>
+#include <string.h> 
+#include <stdio.h> // file operations
+#include <syslog.h> // system logs
 #include "auth.h"
 
-#define DB_FILE "../users.csv"
+
+#define DB_FILE "users.csv"
+// #define DB_FILE "/var/lib/wisielec/users.csv"
 
 int register_player(const char *username, const char *password) {
     FILE *file;
@@ -36,7 +39,7 @@ int register_player(const char *username, const char *password) {
 
     file = fopen(DB_FILE, "a");
     if (file == NULL) {
-        perror("Couldn't write to users database");
+        syslog(LOG_ERR, "Couldn't write to users database");
         return -2;
     }
 
@@ -50,7 +53,7 @@ int register_player(const char *username, const char *password) {
 int authenticate_player(const char *username, const char *password) {
     FILE *file = fopen(DB_FILE, "r");
     if (file == NULL) {
-        perror("ERROR: couldn't open/find users database");
+        syslog(LOG_ERR, "Couldn't open/find users database");
         return 0; 
     }
 

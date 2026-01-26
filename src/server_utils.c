@@ -1,19 +1,58 @@
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/epoll.h>
-#include <ctype.h>
-#include "game_server.h"
+#define _GNU_SOURCE
+
+#include <stdio.h> // snprintf
+#include <string.h> // memset, str...
+#include <unistd.h>  // close
+#include <sys/epoll.h> // epoll_ctl
+#include <ctype.h> // tolower
+#include <netinet/in.h> // sockaddr, inet
+#include <arpa/inet.h> // htons, htonl, inet_
+#include <errno.h> // errno 
+#include <syslog.h> // syslog 
+#include <sys/socket.h> // sockets
+#include "server_utils.h"
 #include "net.h"
 #include "auth.h"
 
 #define MAX_FD 1024
 
-
-
 int socket_to_room[MAX_FD];
 
 char socket_to_name[MAX_FD][32];
+
+int multicast_socket(){
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) return -1;
+
+    int on = 1;               
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0){
+        syslog(LOG_INFO, "SO_REUSEADDR setsockopt error : %s\n", strerror(errno));
+        return -1;
+    }
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY); 
+    addr.sin_port = htons(MULTICAST_PORT);
+
+    if (bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
+        syslog(LOG_ERR, "multicast bind() error");
+        close(sock);
+        return -1;
+    }
+
+    struct ip_mreq mreq;
+    mreq.imr_multiaddr.s_addr = inet_addr(MULTICAST_IP);
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
+        syslog(LOG_ERR, "IP_ADD_MEMBERSHIP setsockopt error");
+        close(sock);
+        return -1;
+    }
+
+    return sock;
+}
 
 void init_server(){
     for (int i = 0; i < MAX_ROOMS; i++) {
@@ -73,7 +112,7 @@ void assign_to_room(int sock) {
         socket_to_room[sock] = joined_room;     
         p0 = rooms[joined_room].players[0];
         p1 = rooms[joined_room].players[1];           
-        printf("Player %s (socket %d) joined room %d (slot %d)\n", socket_to_name[sock], sock, joined_room, slot);
+        syslog(LOG_INFO, "Player %s (socket %d) joined room %d (slot %d)\n", socket_to_name[sock], sock, joined_room, slot);
 
         snprintf(msg, sizeof(msg), "You have joined room %d, slot %d", joined_room, slot);
         send_text(sock, msg);
@@ -135,9 +174,9 @@ void cleanup_socket(int sock, int efd) {
     epoll_ctl(efd, EPOLL_CTL_DEL, sock, NULL);
     close(sock);
     if(socket_to_name[sock][0] == '\0'){
-        printf("Socket %d closed\n", sock);
+        syslog(LOG_INFO, "Socket %d closed\n", sock);
     } else {
-        printf("Player %s on socket %d disconnected, closed the socket.\n", socket_to_name[sock], sock);
+        syslog(LOG_INFO, "Player %s on socket %d disconnected, closed the socket.\n", socket_to_name[sock], sock);
         memset(socket_to_name[sock], 0, 32);
     }
 
@@ -190,7 +229,7 @@ int handle_client_message(int sock) {
                 socket_to_name[sock][31] = '\0'; 
                 snprintf(msg, sizeof(msg), "Logged in as %s.", p->username);
                 send_text(sock, msg);
-                printf("Player %s logged in\n", p->username);
+                syslog(LOG_INFO, "Player %s logged in\n", p->username);
                 assign_to_room(sock);
             } else {
                 send_text(sock, "Login error.");
@@ -204,7 +243,7 @@ int handle_client_message(int sock) {
             if (register_player(p->username, p->password) == 1){
                 snprintf(msg, sizeof(msg), "Registered as %s.", p->username);
                 send_text(sock, msg);
-                printf("Registered a new player: %s", p->username);
+                syslog(LOG_INFO, "Registered a new player: %s", p->username);
             } else { 
                 send_text(sock, "Registration error");
             }
@@ -298,10 +337,13 @@ int handle_client_message(int sock) {
                 if (won) {
                     send_text(sock, "YOU WON!\nYou guessed the word!");
                     char msg[64];
-                    sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
+                    // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
+                    snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
                     send_text(opp_sock, msg);
                 } else {
-                    char msg[64]; sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
+                    char msg[64];
+                    // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
+                    snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
                     send_text(sock, msg);
                     send_text(opp_sock, "YOU WON!\nYour opponent couldn't guess your secret word.");
                 }

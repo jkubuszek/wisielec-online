@@ -1,14 +1,16 @@
-#include        <sys/types.h>
-#include        <sys/socket.h>
-#include        <sys/time.h>
-#include        <netinet/in.h>
-#include        <arpa/inet.h>
-#include        <errno.h>
-#include        <stdio.h>
-#include        <string.h>
-#include 	    <unistd.h>
-#include        <sys/select.h>
-#include        "game_client.h"
+#define _GNU_SOURCE
+#include        <sys/types.h> 
+#include        <sys/socket.h> // sockets
+#include        <sys/time.h> // select, FD
+#include        <netinet/in.h> // sockaddr
+#include        <arpa/inet.h> // INET_ADDRSTRLEN, inet_ntoa
+#include        <errno.h> // errno
+#include        <stdio.h> // printf, snprintf
+#include        <string.h> // str...
+#include 	    <unistd.h> // close, STDIN_FILENO
+#include        <sys/select.h> // select, fd_set
+#include        <netdb.h> // getaddrinfo, freeaddrinfo
+#include        "client_utils.h"
 #include        "net.h"
 
 #define MAX_INPUT 256
@@ -21,31 +23,55 @@ int main(int argc, char **argv)
     int					sockfd, err;
 	struct sockaddr_in	servaddr;
     char msg[1024];
+    char server_ip[INET_ADDRSTRLEN];
     
     fd_set readfds;
     int max_sd;
     
-    if (argc != 2){
-		fprintf(stderr, "ERROR: usage: %s <IPaddress>\n", argv[0]);
-		return 1;
+    if (argc == 2) {
+        strncpy(server_ip, argv[1], INET_ADDRSTRLEN);
+    } else {
+        if (!find_server(server_ip)) {
+            fprintf(stderr, "Could not find server automatically. Usage: %s <IPaddress>\n", argv[0]);
+            return 1;
+        }
     }
 
-	if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-		fprintf(stderr,"socket error : %s\n", strerror(errno));
-		return 1;
-	}
+    struct addrinfo hints;
+    struct addrinfo *result, *rp;
+    
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;       
+    hints.ai_socktype = SOCK_STREAM; 
 
-	bzero(&servaddr, sizeof(servaddr));
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port   = htons(8080);
-	if ( (err=inet_pton(AF_INET, argv[1], &servaddr.sin_addr)) <= 0){
-		fprintf(stderr,"inet_pton error for %s\n", argv[1]);
-		return 1;
+    char port_str[6]; //convert port to string for getaddrinfo
+    snprintf(port_str, sizeof(port_str), "%d", PORT); 
+
+    int s = getaddrinfo(server_ip, port_str, &hints, &result);
+    if (s != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+        return 1;
     }
 
-	if (connect(sockfd, (SA *) &servaddr, sizeof(servaddr)) < 0){
-		fprintf(stderr,"connect error : %s \n", strerror(errno));
-		return 1;
+
+    // iterate through all the results from getaddrinfo
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        sockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sockfd == -1)
+            continue; // address doesn't work, check the next one
+
+        if (connect(sockfd, rp->ai_addr, rp->ai_addrlen) != -1)
+            break; // break if managed to connect
+        
+
+        close(sockfd); 
+    }
+
+    freeaddrinfo(result); 
+
+    if (rp == NULL) {               
+        fprintf(stderr, "Could not connect to server %s\n", server_ip);
+        return 1;
     }
 
     printf("Connected to server.\n");

@@ -1,7 +1,8 @@
 #include "net.h"
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <string.h>
+#include <sys/socket.h> // sockets
+#include <arpa/inet.h> // htons, ntohs
+#include <string.h> // strlen 
+
 
 
 int send_packet(int sock, uint8_t type, const void *data, uint16_t data_len) {
@@ -34,8 +35,6 @@ int recv_packet(int sock, void *buffer, uint16_t buffer_size) {
         return n; 
     }
     uint16_t msg_len = ntohs(header.length); 
-
-    // if (msg_len > buffer_size) msg_len = buffer_size;
 
     if (msg_len > 0) {
         if (recv(sock, buffer, msg_len, MSG_WAITALL) <= 0){

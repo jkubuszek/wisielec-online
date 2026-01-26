@@ -6,9 +6,6 @@
  */
 #pragma once
 
-#include <stdint.h>
-
-#define PORT 8080
 #define BUFFER_SIZE 1024
 #define MAX_LEN 32 
 #define MAX_ROOMS 50
@@ -42,6 +39,8 @@ typedef struct {
 } GameRoom;
 
 extern GameRoom rooms[MAX_ROOMS];
+
+int multicast_socket();
 
 int handle_client_message(int sock);
 

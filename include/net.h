@@ -6,7 +6,13 @@
  */
 
 #pragma once
-#include <stdint.h>
+#include <stdint.h> // for uint
+
+#define PORT 8080
+#define MULTICAST_IP "239.255.255.250" 
+#define MULTICAST_PORT 8888            
+#define DISCOVERY_MSG "DISCOVERY_REQUEST" 
+#define DISCOVERY_RESPONSE "HANGMAN_SERVER" 
 
 typedef struct {
     uint8_t type;      
@@ -18,8 +24,8 @@ so there is no risk that communicaton between different architecture  machines w
 */
 
 typedef struct {
-    char username[32];
-    char password[32];
+    char username[16];
+    char password[16];
 } Login;
 
 typedef struct {
