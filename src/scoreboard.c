@@ -20,34 +20,45 @@ int save_points(const char *username, const int *points) {
 
     file = fopen(SC_FILE, "r");
     tmp = fopen(TMP_FILE, "w");
+    if (tmp == NULL) {
+        if (file) 
+        fclose(file);
+        
+        if (!file && !tmp) {
+        syslog(LOG_ERR, "Scoreboard system failure: cannot open %s or %s", SC_FILE, TMP_FILE);
+        return 0;
+}
+        
+        return 0;
+    }
 
     // check for user
     if (file) {
         while (fgets(line, sizeof(line), file)) {
             char line_copy[256];
             strcpy(line_copy, line);
-           
+            line_copy[strcspn(line_copy, "\n")] = 0;
             token = strtok(line_copy, ";");
             
             
             if (token != NULL) {
                 if (strcmp(token, username) == 0) {
-                    m_points = strtok(NULL, "\n");
+                    m_points = strtok(NULL, ";\n");
                     m_i_point  = atoi(m_points);
-                    m_i_point = m_i_point + points;
+                    m_i_point += *points;
                     //add points
                     fprintf(tmp, "%s;%d\n", username, m_i_point);
                     find = 1;
                     //return 1; 
                 }else{
-                    fprintf(tmp, line_copy);
+                    fprintf(tmp, "%s\n", line_copy);
                 }
                 
                 
             }
         }
-        if (find!=0){            
-            fprintf(tmp, "%s;%d\n", username, points);
+        if (find==0){            
+            fprintf(tmp, "%s;%d\n", username, *points);
         }
 
         fclose(file);
@@ -66,6 +77,7 @@ int save_points(const char *username, const int *points) {
 }
 
 int read_serv_points(char *string, int const size) {
+    string[0]="\0";
     FILE *file = fopen(SC_FILE, "r");
     if (file == NULL) {
         syslog(LOG_ERR, "Couldn't open/find users database");
@@ -80,8 +92,9 @@ int read_serv_points(char *string, int const size) {
 
         // delete \n if found
         line[strcspn(line, "\n")] = 0;
+        if ((strlen(string)+strlen(line))<=size){
         sprintf(string, "%s|%s", string, line);
-        // getting login
+        }
         
     }
 
@@ -109,12 +122,12 @@ int read_player_points(const char *username){
         // getting username
         char *token_user = strtok(line, ";");
         // getting score
-        char *token_score = strtok(NULL, ";");
+        char *token_score = strtok(NULL, ";\n");
 
         // authentication
         if (token_user != NULL && token_score != NULL) {
             if (strcmp(username, token_user) == 0) {
-                m_points = token_score;
+                m_points = atoi(token_score);
                 break; 
             }
         }
