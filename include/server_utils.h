@@ -11,6 +11,7 @@
 #define MAX_PLAYERS 50
 #define SC_FILE "scoreboard.csv"
 #define TMP_FILE "temp.csv"
+#define DB_FILE "users.csv"
 
 
 // this is similar to GameSate, but it's for server only
@@ -59,3 +60,5 @@ int save_points(const char *username, const int points);
 int read_serv_points(PlayerScore *scores, int const size);
 
 int read_player_points(const char *username);
+
+int is_valid_ascii(const char *str);

@@ -14,7 +14,7 @@
 #include        "auth.h"
 #include        "server_utils.h"
 
-#define DB_FILE "users.csv"
+
 #define LISTENQ 10
 #define MAXLINE 1024
 

@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
 
 #include <stdio.h> // snprintf
-#include <stdlib.h> // atoi
+#include <stdlib.h> // atoi, exit
 #include <string.h> // memset, str...
 #include <unistd.h>  // close
 #include <sys/epoll.h> // epoll_ctl
@@ -188,7 +188,29 @@ int multicast_socket(){
     return sock;
 }
 
+void check_file(const char *filename) {
+    FILE *f = fopen(filename, "r");
+    
+    if (f != NULL) {
+        fclose(f);
+        return;
+    } else {
+        f = fopen(filename, "w"); 
+        if (f != NULL) {
+            syslog(LOG_INFO, "Created missing database file: %s", filename);
+            fclose(f);
+            return;
+        } else {
+            syslog(LOG_ERR, "Cannot create/access file: %s", filename);
+            closelog();
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
 void init_server(){
+    check_file(DB_FILE);
+    check_file(SC_FILE);
     memset(socket_to_name, 0, sizeof(socket_to_name));
     for (int i = 0; i < MAX_ROOMS; i++) {
         rooms[i].id = i;
@@ -286,6 +308,17 @@ void assign_to_room(int sock) {
     }
 }
 
+int is_valid_ascii(const char *str) {
+    while (*str) {
+        unsigned char c = (unsigned char)*str;        
+        if (c < 33 || c > 126) {
+            return 0; 
+        }
+        str++;
+    }
+    return 1;
+}
+
 
 void cleanup_socket(int sock, int efd) {
     int r_idx = socket_to_room[sock];
@@ -336,6 +369,7 @@ void cleanup_socket(int sock, int efd) {
         }
     }
 }
+
 
 int handle_client_message(int sock) {
 
@@ -436,8 +470,16 @@ int handle_client_message(int sock) {
     if (room->state == 1 && type == MSG_WORD) {
         if (p_idx == room->current_setter) {
             Word *p = (Word*)buffer;
-            
             int len = strlen(p->word);
+            
+            for(int i = 0; i < len; i++){
+                if(!isalpha((unsigned char)p->word[i])){
+                    send_text(sock, "Invalid characters in secret word, word rejected. Set a new word:");
+                    send_packet(sock, MSG_PROMPT, NULL, 0);
+                    return 0;
+                }
+            }
+
             for(int i = 0; i < len; i++){
                  room->game.word[i] = tolower(p->word[i]);
             }
