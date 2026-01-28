@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <stdio.h> // snprintf
+#include <stdlib.h> // atoi
 #include <string.h> // memset, str...
 #include <unistd.h>  // close
 #include <sys/epoll.h> // epoll_ctl
@@ -10,15 +11,148 @@
 #include <errno.h> // errno 
 #include <syslog.h> // syslog 
 #include <sys/socket.h> // sockets
+#include <string.h> // memset
 #include "server_utils.h"
 #include "net.h"
 #include "auth.h"
 
-#define MAX_FD 1024
+
 
 int socket_to_room[MAX_FD];
 
-char socket_to_name[MAX_FD][32];
+char socket_to_name[MAX_FD][MAX_NAME_LEN];
+
+int save_points(const char *username, const int points) {
+    FILE *file;
+    FILE *tmp;
+    char line[256];
+    char *token;
+    int find = 0;
+    long position = 0;
+    char *m_points;
+    int m_i_point;
+
+    file = fopen(SC_FILE, "r");
+    tmp = fopen(TMP_FILE, "w");
+    if (tmp == NULL) {
+        if (file) 
+        fclose(file);
+
+        if (!file && !tmp) {
+        syslog(LOG_ERR, "Scoreboard system failure: cannot open %s or %s", SC_FILE, TMP_FILE);
+        return 1;
+        }
+        
+        return 0;
+    }
+
+    // check for user
+    if (file) {
+        while (fgets(line, sizeof(line), file)) {
+            char line_copy[256];
+            strcpy(line_copy, line);
+            line_copy[strcspn(line_copy, "\n")] = 0;
+            token = strtok(line_copy, ";");
+            
+            
+            if (token != NULL) {
+                if (strcmp(token, username) == 0) {
+                    m_points = strtok(NULL, ";\n");
+                    m_i_point  = atoi(m_points);
+                    m_i_point += points;
+                    //add points
+                    fprintf(tmp, "%s;%d\n", username, m_i_point);
+                    find = 1;
+                    //return 1; 
+                }else{
+                    fprintf(tmp, "%s\n", line);
+                }
+                
+                
+            }
+        }
+        if (find==0){            
+            fprintf(tmp, "%s;%d\n", username, points);
+        }
+
+        fclose(file);
+        fclose(tmp);
+
+        remove(SC_FILE);
+        rename(TMP_FILE, SC_FILE);
+        return 1;
+        
+    }
+
+    //here maybe could be return or/and syslog()???
+    
+}
+
+int read_serv_points(PlayerScore *scores, const int size) {
+    // memset(scores, '\0', 32);
+
+    FILE *file = fopen(SC_FILE, "r");
+    if (file == NULL) {
+        syslog(LOG_ERR, "Couldn't open/find users scoreboard");
+        return 1; 
+    }
+
+    char line[256];
+    int count = 0;
+
+    while (fgets(line, sizeof(line), file) && count < size) {
+        // delete \n if found
+        line[strcspn(line, "\n")] = 0;  
+
+        if(strlen(line) == 0) 
+            continue;
+
+        char *token_user = strtok(line, ";");
+        char *token_score = strtok(NULL, ";");
+
+        if (token_user != NULL && token_score != NULL) {
+            strncpy(scores[count].username, token_user, MAX_NAME_LEN);
+            scores[count].username[MAX_NAME_LEN - 1] = '\0';
+            scores[count].score = atoi(token_score);
+            count++;
+        }
+    }
+
+    fclose(file);
+    return count;
+}
+
+int read_player_points(const char *username){
+    FILE *file = fopen(SC_FILE, "r");
+    if (file == NULL) {
+        syslog(LOG_ERR, "Couldn't open/find users scoreboard");
+        return -1; 
+    }
+
+    char line[256];
+    int m_points = 0;
+
+    
+
+    while (fgets(line, sizeof(line), file)) {
+        // delete \n if found
+        line[strcspn(line, "\n")] = 0;
+        // getting username
+        char *token_user = strtok(line, ";");
+        // getting score
+        char *token_score = strtok(NULL, ";\n");
+
+        if (token_user != NULL && token_score != NULL) {
+            if (strcmp(username, token_user) == 0) {
+                m_points = atoi(token_score);
+                break; 
+            }
+        }
+    }
+
+    fclose(file);
+    return m_points;
+}
 
 int multicast_socket(){
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -55,6 +189,7 @@ int multicast_socket(){
 }
 
 void init_server(){
+    memset(socket_to_name, 0, sizeof(socket_to_name));
     for (int i = 0; i < MAX_ROOMS; i++) {
         rooms[i].id = i;
         rooms[i].players[0] = 0;
@@ -206,7 +341,7 @@ int handle_client_message(int sock) {
 
     char msg[256];
     char buffer[1024];
-    int type = recv_packet(sock, buffer, sizeof(buffer));
+    int type = recv_packet(sock, buffer, sizeof(buffer), NULL);
 
     if (type <= 0){
         return -1; // sending error detected
@@ -214,7 +349,7 @@ int handle_client_message(int sock) {
     
     int room_idx = socket_to_room[sock];
     
-    if (room_idx == -1 && type != MSG_LOGIN && type != MSG_REGISTER && type != MSG_EXIT) {
+    if (room_idx == -1 && type != MSG_LOGIN && type != MSG_REGISTER && type != MSG_SCOREBOARD) {
         send_text(sock, "Error: You are not in a room yet.");
         return 0;
     }
@@ -224,6 +359,17 @@ int handle_client_message(int sock) {
         case MSG_LOGIN:{
             Login *p = (Login*)buffer;
             p->username[31] = 0; p->password[31] = 0;
+            for(int i = 0; i < MAX_FD; i++){
+                if(strcmp(socket_to_name[i], p->username) == 0){
+                    send_text(sock, "Player already logged in.");
+                    return 0;
+                }
+            }
+            if(socket_to_name[sock][0] != '\0'){
+                snprintf(msg, sizeof(msg), "You are already logged in as %s", socket_to_name[sock]);
+                send_text(sock, msg);
+                return 0;
+            }
             if (authenticate_player(p->username, p->password)){
                 strncpy(socket_to_name[sock], p->username, 31);
                 socket_to_name[sock][31] = '\0'; 
@@ -238,8 +384,14 @@ int handle_client_message(int sock) {
         }
 
         case MSG_REGISTER:{
+            
             Login *p = (Login*)buffer;
             p->username[31] = 0; p->password[31] = 0;
+            if(socket_to_name[sock][0] != '\0'){
+                snprintf(msg, sizeof(msg), "You are already logged in as %s", socket_to_name[sock]);
+                send_text(sock, msg);
+                return 0;
+            }
             if (register_player(p->username, p->password) == 1){
                 snprintf(msg, sizeof(msg), "Registered as %s.", p->username);
                 send_text(sock, msg);
@@ -249,6 +401,19 @@ int handle_client_message(int sock) {
             }
         return 0; 
         }
+
+        case MSG_SCOREBOARD:{
+            PlayerScore scoreboard[MAX_PLAYERS];
+            int count = read_serv_points(scoreboard, MAX_PLAYERS);
+            int data_len = count * sizeof(PlayerScore);
+            send_packet(sock, MSG_SCOREBOARD, &scoreboard, data_len);
+        return 0; 
+        }
+
+        case MSG_LOGOUT:
+
+
+        return 0;
 
         case MSG_EXIT:
         return -1;
@@ -340,12 +505,15 @@ int handle_client_message(int sock) {
                     // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
                     snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
                     send_text(opp_sock, msg);
+                    save_points(socket_to_name[sock], 1);
                 } else {
                     char msg[64];
                     // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
                     snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
                     send_text(sock, msg);
                     send_text(opp_sock, "YOU WON!\nYour opponent couldn't guess your secret word.");
+                    save_points(socket_to_name[opp_sock], 1);
+
                 }
 
                 // reset and changing sides

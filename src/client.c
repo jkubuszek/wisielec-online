@@ -75,6 +75,7 @@ int main(int argc, char **argv)
     }
 
     printf("Connected to server.\n");
+    hangman_title();
     print_help();
 
     int game_started = 0;
@@ -109,8 +110,46 @@ int main(int argc, char **argv)
             }
             
             if (strlen(input_line) == 0) continue;
+            
+            if(input_line[0] == '/'){
+                char command[32], arg1[32], arg2[32];
+                int parsed = sscanf(input_line, "%31s %31s %31s", command, arg1, arg2);
+                if (parsed < 1) continue;
 
-            if (game_started) {
+                memset(msg, 0, sizeof(msg));
+
+                if (strcmp(command, "/login") == 0) { // to review
+                    if (parsed < 3) { printf("Usage: login <user> <password>\n"); continue; }
+                    Login *p = (Login*)msg;
+                    strncpy(p->username, arg1, 31);
+                    strncpy(p->password, arg2, 31);
+                    send_packet(sockfd, MSG_LOGIN, msg, sizeof(Login));
+                }
+                else if (strcmp(command, "/register") == 0) { // to review
+                    if (parsed < 3) { printf("Usage: register <user> <password>\n"); continue; }
+                    Login *p = (Login*)msg;
+                    strncpy(p->username, arg1, 31);
+                    strncpy(p->password, arg2, 31);
+                    send_packet(sockfd, MSG_REGISTER, msg, sizeof(Login));
+                }
+                // else if (strcmp(command, "/exit") == 0) {
+                //     send_packet(sockfd, MSG_EXIT, NULL, 0);
+                //     break;
+                // }
+                // else if ((strcmp(command, "/logout") == 0)) {
+                //     send_packet(sockfd, MSG_LOGOUT, NULL, 0);
+                //     break;
+                // }
+                else if (strcmp(command, "/help") == 0) {
+                    print_help();
+                }
+                else if (strcmp(command, "/scoreboard") == 0) {
+                    send_packet(sockfd, MSG_SCOREBOARD, NULL, 0);
+                }
+                else {
+                    printf("Unknown command (type '/help' to see available commands).\n");
+                }
+            } else if (game_started) {
                 if (strlen(input_line) == 1) {
                     Guess g;
                     g.letter = input_line[0];
@@ -120,39 +159,6 @@ int main(int argc, char **argv)
                     strncpy(w.word, input_line, 31);
                     w.word[31] = '\0';
                     send_packet(sockfd, MSG_WORD, &w, sizeof(w));
-                }
-            } 
-            else {
-                char command[32], arg1[32], arg2[32];
-                int parsed = sscanf(input_line, "%31s %31s %31s", command, arg1, arg2);
-
-                if (parsed < 1) continue;
-
-                memset(msg, 0, sizeof(msg));
-
-                if (strcmp(command, "login") == 0) {
-                    if (parsed < 3) { printf("Usage: login <user> <password>\n"); continue; }
-                    Login *p = (Login*)msg;
-                    strncpy(p->username, arg1, 31);
-                    strncpy(p->password, arg2, 31);
-                    send_packet(sockfd, MSG_LOGIN, msg, sizeof(Login));
-                }
-                else if (strcmp(command, "register") == 0) {
-                    if (parsed < 3) { printf("Usage: register <user> <password>\n"); continue; }
-                    Login *p = (Login*)msg;
-                    strncpy(p->username, arg1, 31);
-                    strncpy(p->password, arg2, 31);
-                    send_packet(sockfd, MSG_REGISTER, msg, sizeof(Login));
-                }
-                else if (strcmp(command, "exit") == 0) {
-                    send_packet(sockfd, MSG_EXIT, NULL, 0);
-                    break;
-                }
-                else if (strcmp(command, "help") == 0) {
-                    print_help();
-                }
-                else {
-                    printf("Unknown command (type 'help' to see available commands).\n");
                 }
             }
         }

@@ -8,6 +8,8 @@
 #pragma once
 #include <stdint.h> // for uint
 
+#define MAX_NAME_LEN 32
+
 #define PORT 8080
 #define MULTICAST_IP "239.255.255.250" 
 #define MULTICAST_PORT 8888            
@@ -24,8 +26,8 @@ so there is no risk that communicaton between different architecture  machines w
 */
 
 typedef struct {
-    char username[16];
-    char password[16];
+    char username[MAX_NAME_LEN];
+    char password[32];
 } Login;
 
 typedef struct {
@@ -44,6 +46,12 @@ typedef struct {
     char letters[32];
 } GameState;
 
+typedef struct { 
+    char username[MAX_NAME_LEN];
+    int score;
+}PlayerScore;
+
+
 #pragma pack(pop)
 
 /// @brief all of the message types that can be sent or received
@@ -57,11 +65,13 @@ typedef enum {
     MSG_PROMPT = 7,
     MSG_EXIT = 8,
     MSG_ERROR = 9,
-    MSG_GAME_START = 10
+    MSG_GAME_START = 10,
+    MSG_SCOREBOARD = 11,
+    MSG_LOGOUT = 12
 } MessageType;
 
 int send_packet(int sock, uint8_t type, const void *data, uint16_t data_len);
 
 void send_text(int sock, const char *msg);
 
-int recv_packet(int sock, void *buffer, uint16_t buffer_size);
+int recv_packet(int sock, void *buffer, uint16_t buffer_size, int *out_len);

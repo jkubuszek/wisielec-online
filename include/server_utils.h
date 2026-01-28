@@ -1,15 +1,16 @@
-/**
- * @file game.h
- * @author JK 
- * @brief this file handles message types, game states and game message types 
- * @date 2026-01-13
- */
 #pragma once
+
+#include "net.h"
 
 #define BUFFER_SIZE 1024
 #define MAX_LEN 32 
 #define MAX_ROOMS 50
 
+#define MAX_FD 1024
+
+#define MAX_PLAYERS 50
+#define SC_FILE "scoreboard.csv"
+#define TMP_FILE "temp.csv"
 
 
 // this is similar to GameSate, but it's for server only
@@ -52,3 +53,9 @@ void init_server();
 void assign_to_room(int sock);
 
 void cleanup_socket(int sock, int efd);
+
+int save_points(const char *username, const int points);
+
+int read_serv_points(PlayerScore *scores, int const size);
+
+int read_player_points(const char *username);

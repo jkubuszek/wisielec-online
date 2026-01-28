@@ -27,7 +27,7 @@ void send_text(int sock, const char *msg) {
     send_packet(sock, MSG_TEXT, msg, strlen(msg) + 1);
 }
 
-int recv_packet(int sock, void *buffer, uint16_t buffer_size) {
+int recv_packet(int sock, void *buffer, uint16_t buffer_size, int *out_len) {
     PacketHeader header;
 
     int n = recv(sock, &header, sizeof(header), MSG_WAITALL); // using WAITALL to ensure we get all the data, but have to test if it's worth it
@@ -35,6 +35,10 @@ int recv_packet(int sock, void *buffer, uint16_t buffer_size) {
         return n; 
     }
     uint16_t msg_len = ntohs(header.length); 
+
+    if (out_len != NULL) {
+        *out_len = msg_len;
+    }
 
     if (msg_len > 0) {
         if (recv(sock, buffer, msg_len, MSG_WAITALL) <= 0){

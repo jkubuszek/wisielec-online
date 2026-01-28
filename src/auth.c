@@ -2,6 +2,7 @@
 #include <stdio.h> // file operations
 #include <syslog.h> // system logs
 #include "auth.h"
+#include "server_utils.h"
 
 
 #define DB_FILE "users.csv"
@@ -47,6 +48,7 @@ int register_player(const char *username, const char *password) {
 
     fflush(file);
     fclose(file);
+    
     return 1; 
 }
 
@@ -59,8 +61,6 @@ int authenticate_player(const char *username, const char *password) {
 
     char line[256];
     int auth_success = 0;
-
-    
 
     while (fgets(line, sizeof(line), file)) {
 
