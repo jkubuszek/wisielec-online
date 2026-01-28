@@ -14,6 +14,7 @@ set(SERVER_SOURCES
     src/server.c
     src/auth.c
     src/server_utils.c
+    src/scoreboard.c
     ${SHARED_SOURCES}
 )
 

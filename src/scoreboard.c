@@ -23,7 +23,7 @@ int save_points(const char *username, const int *points) {
     if (tmp == NULL) {
         if (file) 
         fclose(file);
-        
+
         if (!file && !tmp) {
         syslog(LOG_ERR, "Scoreboard system failure: cannot open %s or %s", SC_FILE, TMP_FILE);
         return 0;
@@ -80,7 +80,7 @@ int read_serv_points(char *string, int const size) {
     string[0]="\0";
     FILE *file = fopen(SC_FILE, "r");
     if (file == NULL) {
-        syslog(LOG_ERR, "Couldn't open/find users database");
+        syslog(LOG_ERR, "Couldn't open/find users scoreboard");
         return 0; 
     }
 
@@ -106,7 +106,7 @@ int read_serv_points(char *string, int const size) {
 int read_player_points(const char *username){
     FILE *file = fopen(SC_FILE, "r");
     if (file == NULL) {
-        syslog(LOG_ERR, "Couldn't open/find users database");
+        syslog(LOG_ERR, "Couldn't open/find users scoreboard");
         return -1; 
     }
 
