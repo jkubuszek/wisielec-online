@@ -155,7 +155,10 @@ int main(int argc, char **argv){
                 }
             } else {
                 if (handle_client_message(currfd) == -1) {
-                    cleanup_socket(currfd, epollfd);
+                    if(cleanup_socket(currfd, epollfd)){
+                        syslog(LOG_ERR, "error: cleanup socket after disconnect");
+                    }
+                    
                 }
             }
         }

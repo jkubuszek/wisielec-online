@@ -129,7 +129,6 @@ int handle_server_message(int sockfd, int *game_started) {
     char response[2048];
     int data_len;
     int type = recv_packet(sockfd, response, sizeof(response), &data_len);
-    
     if (type <= 0) {
         printf("Server disconnected or error.\n");
         return 1;

@@ -453,7 +453,14 @@ int handle_client_message(int sock) {
                 snprintf(msg, sizeof(msg), "Logged in as %s.", p->username);
                 send_text(sock, msg);
                 syslog(LOG_INFO, "Player %s logged in\n", p->username);
-                assign_to_room(sock);
+                int e = assign_to_room(sock);
+                if (e > 0){
+                    if (e == 1){
+                        syslog(LOG_ERR, "Player %s can't assign to room because error\n", socket_to_name[sock]);
+                    }else{
+                        syslog(LOG_ERR, "Player %s can't assign to room because server is full\n", socket_to_name[sock]);
+                    }
+                }
             } else {
                 send_text(sock, "Login error.");
             }
@@ -481,6 +488,9 @@ int handle_client_message(int sock) {
         case MSG_SCOREBOARD:{
             PlayerScore scoreboard[MAX_PLAYERS];
             int count = read_serv_points(scoreboard, MAX_PLAYERS);
+            if (count<0){
+                syslog(LOG_ERR, "Error: could not read scoreboard");
+            }
             int data_len = count * sizeof(PlayerScore);
             if(send_packet(sock, MSG_SCOREBOARD, &scoreboard, data_len)){
                 syslog(LOG_ERR, "Error: could not send packet");
