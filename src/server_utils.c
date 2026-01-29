@@ -82,10 +82,7 @@ int save_points(const char *username, const int points) {
         rename(TMP_FILE, SC_FILE);
         return 1;
         
-    }
-
-    //here maybe could be return or/and syslog()???
-    
+    }    
 }
 
 int read_serv_points(PlayerScore *scores, const int size) {
@@ -94,7 +91,7 @@ int read_serv_points(PlayerScore *scores, const int size) {
     FILE *file = fopen(SC_FILE, "r");
     if (file == NULL) {
         syslog(LOG_ERR, "Couldn't open/find users scoreboard");
-        return 1; 
+        return -1; 
     }
 
     char line[256];
@@ -230,7 +227,7 @@ void reset_round(GameRoom *room){
     room->game.lives = 8;
     room->state = 1; 
 }
-void assign_to_room(int sock) {
+int assign_to_room(int sock) {
     char msg[256];
     int joined_room = -1;
     int slot = -1;
@@ -272,7 +269,10 @@ void assign_to_room(int sock) {
         syslog(LOG_INFO, "Player %s (socket %d) joined room %d (slot %d)\n", socket_to_name[sock], sock, joined_room, slot);
 
         snprintf(msg, sizeof(msg), "You have joined room %d, slot %d", joined_room, slot);
-        send_text(sock, msg);
+        if(send_text(sock, msg)){
+            syslog(LOG_ERR, "Error: could not send text.");
+            return 1;
+        }
     
         /// start game if full and not already going
         if (p0 && p1 && (rooms[joined_room].state == 0)) {
@@ -290,20 +290,48 @@ void assign_to_room(int sock) {
             "This round, the setter is %s.", socket_to_name[p0],
             socket_to_name[p1] , socket_to_name[p0]);
 
-            send_text(p0, msg);
-            send_text(p1, msg);
+            if(send_text(p0, msg)){
+                syslog(LOG_ERR, "Error: could not send text.");
+                return 1;
+            }
+            if(send_text(p1, msg)){
+                syslog(LOG_ERR, "Error: could not send text.");
+                return 1;
+            }
 
-            send_packet(p0, MSG_GAME_START, NULL, 0);
-            send_packet(p1, MSG_GAME_START, NULL, 0);
-            
-            send_text(p0, "Set the secret word now.");
-            send_packet(p0, MSG_PROMPT, NULL, 0);
-            send_text(p1, "Wait for the opponent to set the secret word...");
+            if(send_packet(p0, MSG_GAME_START, NULL, 0)){
+                syslog(LOG_ERR, "Error: could not send packet");
+                return 1;
+            }
+            if(send_packet(p1, MSG_GAME_START, NULL, 0)){
+                syslog(LOG_ERR, "Error: could not send packet");   
+                return 1;
+            }         
+            if(send_text(p0, "Set the secret word now.")){
+                syslog(LOG_ERR, "Error: could not send text");
+                return 1;
+            }
+            if(send_packet(p0, MSG_PROMPT, NULL, 0)){
+                syslog(LOG_ERR, "Error: could not send packet");
+                return 1;
+            }
+            if(send_text(p1, "Wait for the opponent to set the secret word...")){
+                syslog(LOG_ERR, "Error: could not send text");
+                return 1;
+            }
         } else {
-            send_text(sock, "Waiting for another player to join...");
+            if(send_text(sock, "Waiting for another player to join...")){
+                syslog(LOG_ERR, "Error: could not send text");
+                return 1;
+            }
         }
+        return 0;
     } else {
-    send_text(sock, "Server is full.");
+    if(send_text(sock, "Server is full.")){
+        syslog(LOG_ERR, "Error: could not send text");
+        return 1;
+    }
+    return 2;
     close(sock);
     }
 }
@@ -320,7 +348,7 @@ int is_valid_ascii(const char *str) {
 }
 
 
-void cleanup_socket(int sock, int efd) {
+int cleanup_socket(int sock, int efd) {
     int r_idx = socket_to_room[sock];
     int opp_sock;
     int single = 0;
@@ -330,16 +358,22 @@ void cleanup_socket(int sock, int efd) {
         opp_sock = r->players[p_idx == 0 ? 1 : 0];
         r->players[p_idx] = 0;
         socket_to_room[sock] = -1;
-        
+
         if (opp_sock) {
             char msg[256];
             snprintf(msg, sizeof(msg), "Oponnent %s disconnected, waiting for a new player to join...", socket_to_name[sock]);
-            send_text(opp_sock, msg);
+            if(send_text(opp_sock, msg)){
+                syslog(LOG_ERR, "Error: could not send text");
+                return 1;
+            }
             single = opp_sock;
         } 
         r->state = 0;
     }
-    epoll_ctl(efd, EPOLL_CTL_DEL, sock, NULL);
+    if(epoll_ctl(efd, EPOLL_CTL_DEL, sock, NULL) < 0){
+        syslog(LOG_ERR, "epoll_ctl() error : %s\n", strerror(errno));
+        return 1;
+    }
     close(sock);
     if(socket_to_name[sock][0] == '\0'){
         syslog(LOG_INFO, "Socket %d closed\n", sock);
@@ -360,9 +394,18 @@ void cleanup_socket(int sock, int efd) {
             if((rooms[i].players[1] == 0) && (rooms[i].players[0] != 0) && (rooms[i].players[0] != opp_sock)){
                 // rooms[r_idx].players[1] == rooms[i].players[0];
                 // socket_to_room[rooms[r_idx].players[1]] = r_idx;
-                send_text(opp_sock, "We have found an opponent for you waiting in a different room!");
-                send_text(rooms[i].players[0], "We are moving you to a different room with a waiting player.");
-                assign_to_room(rooms[i].players[0]);
+                if(send_text(opp_sock, "We have found an opponent for you waiting in a different room!")){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
+                if(send_text(rooms[i].players[0], "We are moving you to a different room with a waiting player.")){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
+                if(assign_to_room(rooms[i].players[0])){
+                    syslog(LOG_ERR, "Error: could assign player to a room.");
+                    return 1;
+                }
                 rooms[i].players[0] = 0;
                 match = 1;
             }
@@ -378,7 +421,7 @@ int handle_client_message(int sock) {
     int type = recv_packet(sock, buffer, sizeof(buffer), NULL);
 
     if (type <= 0){
-        return -1; // sending error detected
+        return 1; 
     }
     
     int room_idx = socket_to_room[sock];
@@ -418,7 +461,6 @@ int handle_client_message(int sock) {
         }
 
         case MSG_REGISTER:{
-            
             Login *p = (Login*)buffer;
             p->username[31] = 0; p->password[31] = 0;
             if(socket_to_name[sock][0] != '\0'){
@@ -440,17 +482,12 @@ int handle_client_message(int sock) {
             PlayerScore scoreboard[MAX_PLAYERS];
             int count = read_serv_points(scoreboard, MAX_PLAYERS);
             int data_len = count * sizeof(PlayerScore);
-            send_packet(sock, MSG_SCOREBOARD, &scoreboard, data_len);
+            if(send_packet(sock, MSG_SCOREBOARD, &scoreboard, data_len)){
+                syslog(LOG_ERR, "Error: could not send packet");
+                return 1;
+            }
         return 0; 
         }
-
-        case MSG_LOGOUT:
-
-
-        return 0;
-
-        case MSG_EXIT:
-        return -1;
     }
 
     if (room_idx == -1) {
@@ -474,8 +511,14 @@ int handle_client_message(int sock) {
             
             for(int i = 0; i < len; i++){
                 if(!isalpha((unsigned char)p->word[i])){
-                    send_text(sock, "Invalid characters in secret word, word rejected. Set a new word:");
-                    send_packet(sock, MSG_PROMPT, NULL, 0);
+                    if(send_text(sock, "Invalid characters in secret word, word rejected. Set a new word:")){
+                        syslog(LOG_ERR, "Error: could not send text");
+                        return 1;
+                    }
+                    if(send_packet(sock, MSG_PROMPT, NULL, 0)){
+                        syslog(LOG_ERR, "Error: could not send packet");
+                        return 1;
+                    }
                     return 0;
                 }
             }
@@ -505,10 +548,22 @@ int handle_client_message(int sock) {
             state.max_lives = 8;
             strcpy(state.letters, room->letters_used);
 
-            send_packet(sock, MSG_GAME_STATE, &state, sizeof(state));
-            send_text(sock, "Word accepted, now, the opponent starts guessing.");
-            send_packet(opp_sock, MSG_GAME_STATE, &state, sizeof(state));
-            send_text(opp_sock, "Your opponent has set the word. Now, start guessing!");
+            if(send_packet(sock, MSG_GAME_STATE, &state, sizeof(state))){
+                syslog(LOG_ERR, "Error: could not send packet");
+                return 1;
+            }
+            if(send_text(sock, "Word accepted, now, the opponent starts guessing.")){
+                syslog(LOG_ERR, "Error: could not send text");
+                return 1;
+            }
+            if(send_packet(opp_sock, MSG_GAME_STATE, &state, sizeof(state))){
+                syslog(LOG_ERR, "Error: could not send packet");
+                return 1;
+            }
+            if(send_text(opp_sock, "Your opponent has set the word. Now, start guessing!")){
+                syslog(LOG_ERR, "Error: could not send text");
+                return 1;
+            }
         }
     } else if(room->state == 2 && type == MSG_GUESS) {
         if (p_idx != room->current_setter) {
@@ -534,8 +589,14 @@ int handle_client_message(int sock) {
             state.lives = room->game.lives;
             state.max_lives = 8;
             strcpy(state.letters, room->letters_used);
-            send_packet(sock, MSG_GAME_STATE, &state, sizeof(state));
-            send_packet(opp_sock, MSG_GAME_STATE, &state, sizeof(state));
+            if(send_packet(sock, MSG_GAME_STATE, &state, sizeof(state))){
+                syslog(LOG_ERR, "Error: could not send packet");
+                return 1;
+            }
+            if(send_packet(opp_sock, MSG_GAME_STATE, &state, sizeof(state))){
+                syslog(LOG_ERR, "Error: could not send packet");
+                return 1;
+            }
 
             int won = (strcmp(room->game.word, room->game.mask) == 0);
             int lost = (room->game.lives <= 0);
@@ -547,32 +608,38 @@ int handle_client_message(int sock) {
                     // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
                     snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
                     send_text(opp_sock, msg);
-                    save_points(socket_to_name[sock], 1);
+                    if(!save_points(socket_to_name[opp_sock], 1))
+                        syslog(LOG_ERR, "Could not save player's %s points", socket_to_name[opp_sock]);
                 } else {
                     char msg[64];
                     // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
                     snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
                     send_text(sock, msg);
                     send_text(opp_sock, "YOU WON!\nYour opponent couldn't guess your secret word.");
-                    save_points(socket_to_name[opp_sock], 1);
+                    if(!save_points(socket_to_name[opp_sock], 1))
+                        syslog(LOG_ERR, "Could not save player's %s points", socket_to_name[opp_sock]);
 
                 }
 
-                // reset and changing sides
+                // reset and change sides
                 reset_round(room);
                 room->current_setter = (room->current_setter == 0) ? 1 : 0;
                 
                 int new_setter = room->players[room->current_setter];
                 int new_guesser = room->players[(room->current_setter == 0) ? 1 : 0];
 
-                // send_packet(rooms[i].players[0], MSG_GAME_START, NULL, 0);
-                // send_packet(rooms[i].players[1], MSG_GAME_START, NULL, 0);
-
-                send_text(new_setter, "Now it is your turn to set the secret word:");
-                send_packet(new_setter, MSG_PROMPT, NULL, 0); 
-                send_text(new_guesser, "Wait for the opponent to set the secret word...");
-                
-
+                if(send_text(new_setter, "Now it is your turn to set the secret word:")){
+                    syslog(LOG_ERR, "Error: could not send text");
+                    return 1;
+                }
+                if(send_packet(new_setter, MSG_PROMPT, NULL, 0)){
+                    syslog(LOG_ERR, "Error: could not send packet");
+                    return 1;
+                }
+                if(send_text(new_guesser, "Wait for the opponent to set the secret word...")){
+                    syslog(LOG_ERR, "Error: could not send packet");
+                    return 1;
+                }
             } 
         }
     }

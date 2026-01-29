@@ -16,7 +16,7 @@ int find_server(char *server_ip_out) {
 
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Socket creation failed");
-        return 0;
+        return 1;
     }
 
     struct timeval tv;
@@ -34,7 +34,7 @@ int find_server(char *server_ip_out) {
               (struct sockaddr *)&mcast_addr, sizeof(mcast_addr)) < 0) {
         perror("Sendto failed");
         close(sock);
-        return 0;
+        return 1;
     }
 
     struct sockaddr_in server_addr;
@@ -132,7 +132,7 @@ int handle_server_message(int sockfd, int *game_started) {
     
     if (type <= 0) {
         printf("Server disconnected or error.\n");
-        return -1;
+        return 1;
     }
 
     switch(type){

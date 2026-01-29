@@ -12,19 +12,19 @@ int send_packet(int sock, uint8_t type, const void *data, uint16_t data_len) {
 
     // send header
     if (send(sock, &header, sizeof(header), 0) != sizeof(header)){
-        return -1;
+        return 1;
     }
     // send data
     if (data_len > 0 && data != NULL) {
         if (send(sock, data, data_len, 0) != data_len){
-            return -1;
+            return 1;
         }
     }  
-    return 1;
+    return 0;
 }
 
-void send_text(int sock, const char *msg) {
-    send_packet(sock, MSG_TEXT, msg, strlen(msg) + 1);
+int send_text(int sock, const char *msg) {
+    return send_packet(sock, MSG_TEXT, msg, strlen(msg) + 1);
 }
 
 int recv_packet(int sock, void *buffer, uint16_t buffer_size, int *out_len) {
