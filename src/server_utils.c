@@ -151,40 +151,6 @@ int read_player_points(const char *username){
     return m_points;
 }
 
-int multicast_socket(){
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) return -1;
-
-    int on = 1;               
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0){
-        syslog(LOG_INFO, "SO_REUSEADDR setsockopt error : %s\n", strerror(errno));
-        return -1;
-    }
-
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY); 
-    addr.sin_port = htons(MULTICAST_PORT);
-
-    if (bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
-        syslog(LOG_ERR, "multicast bind() error");
-        close(sock);
-        return -1;
-    }
-
-    struct ip_mreq mreq;
-    mreq.imr_multiaddr.s_addr = inet_addr(MULTICAST_IP);
-    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
-        syslog(LOG_ERR, "IP_ADD_MEMBERSHIP setsockopt error");
-        close(sock);
-        return -1;
-    }
-
-    return sock;
-}
-
 void check_file(const char *filename) {
     FILE *f = fopen(filename, "r");
     
@@ -298,7 +264,6 @@ int assign_to_room(int sock) {
                 syslog(LOG_ERR, "Error: could not send text.");
                 return 1;
             }
-
             if(send_packet(p0, MSG_GAME_START, NULL, 0)){
                 syslog(LOG_ERR, "Error: could not send packet");
                 return 1;
@@ -427,7 +392,10 @@ int handle_client_message(int sock) {
     int room_idx = socket_to_room[sock];
     
     if (room_idx == -1 && type != MSG_LOGIN && type != MSG_REGISTER && type != MSG_SCOREBOARD) {
-        send_text(sock, "Error: You are not in a room yet.");
+        if(send_text(sock, "Error: You are not in a room yet.")){
+            syslog(LOG_ERR, "Error: could not send text.");
+            return 1;
+        }
         return 0;
     }
     
@@ -438,20 +406,29 @@ int handle_client_message(int sock) {
             p->username[31] = 0; p->password[31] = 0;
             for(int i = 0; i < MAX_FD; i++){
                 if(strcmp(socket_to_name[i], p->username) == 0){
-                    send_text(sock, "Player already logged in.");
+                    if(send_text(sock, "Player already logged in.")){
+                        syslog(LOG_ERR, "Error: could not send text.");
+                        return 1;
+                    }
                     return 0;
                 }
             }
             if(socket_to_name[sock][0] != '\0'){
                 snprintf(msg, sizeof(msg), "You are already logged in as %s", socket_to_name[sock]);
-                send_text(sock, msg);
+                if(send_text(sock, msg)){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
                 return 0;
             }
             if (authenticate_player(p->username, p->password)){
                 strncpy(socket_to_name[sock], p->username, 31);
                 socket_to_name[sock][31] = '\0'; 
                 snprintf(msg, sizeof(msg), "Logged in as %s.", p->username);
-                send_text(sock, msg);
+                if(send_text(sock, msg)){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
                 syslog(LOG_INFO, "Player %s logged in\n", p->username);
                 int e = assign_to_room(sock);
                 if (e > 0){
@@ -462,7 +439,10 @@ int handle_client_message(int sock) {
                     }
                 }
             } else {
-                send_text(sock, "Login error.");
+                if(send_text(sock, "Login error.")){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
             }
         return 0;
         }
@@ -472,15 +452,24 @@ int handle_client_message(int sock) {
             p->username[31] = 0; p->password[31] = 0;
             if(socket_to_name[sock][0] != '\0'){
                 snprintf(msg, sizeof(msg), "You are already logged in as %s", socket_to_name[sock]);
-                send_text(sock, msg);
+                if(send_text(sock, msg)){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
                 return 0;
             }
             if (register_player(p->username, p->password) == 1){
                 snprintf(msg, sizeof(msg), "Registered as %s.", p->username);
-                send_text(sock, msg);
+                if(send_text(sock, msg)){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
                 syslog(LOG_INFO, "Registered a new player: %s", p->username);
             } else { 
-                send_text(sock, "Registration error");
+                if(send_text(sock, "Registration error")){
+                    syslog(LOG_ERR, "Error: could not send text.");
+                    return 1;
+                }
             }
         return 0; 
         }
@@ -501,7 +490,10 @@ int handle_client_message(int sock) {
     }
 
     if (room_idx == -1) {
-        send_text(sock, "Please login first.");
+        if(send_text(sock, "Please login first.")){
+            syslog(LOG_ERR, "Error: could not send text.");
+            return 1;
+        }
         return 0;
     }
 
@@ -510,7 +502,10 @@ int handle_client_message(int sock) {
     int opp_sock = room->players[(p_idx == 0) ? 1 : 0];
 
      if (opp_sock == 0) {
-        send_text(sock, "Waiting for another player to join...");
+        if(send_text(sock, "Waiting for another player to join...")){
+            syslog(LOG_ERR, "Error: could not send text.");
+            return 1;
+        }
         return 0;
     }
     
@@ -613,21 +608,37 @@ int handle_client_message(int sock) {
 
             if (won || lost) {
                 if (won) {
-                    send_text(sock, "YOU WON!\nYou guessed the word!");
+                    if(send_text(sock, "YOU WON!\nYou guessed the word!")){
+                        syslog(LOG_ERR, "Error: could not send text.");
+                        return 1;
+                    }
                     char msg[64];
                     // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
                     snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
-                    send_text(opp_sock, msg);
-                    if(!save_points(socket_to_name[opp_sock], 1))
+                    if(send_text(opp_sock, msg)){
+                        syslog(LOG_ERR, "Error: could not send text.");
+                        return 1;
+                    }
+                    if(!save_points(socket_to_name[opp_sock], 1)){
                         syslog(LOG_ERR, "Could not save player's %s points", socket_to_name[opp_sock]);
+                        return 1;
+                    }
                 } else {
                     char msg[64];
                     // sprintf(msg, "You lost :(\nThe password was: %s", room->game.word);
                     snprintf(msg, sizeof(msg), "You lost :(\nThe password was: %s", room->game.word);
-                    send_text(sock, msg);
-                    send_text(opp_sock, "YOU WON!\nYour opponent couldn't guess your secret word.");
-                    if(!save_points(socket_to_name[opp_sock], 1))
+                    if(send_text(sock, msg)){
+                        syslog(LOG_ERR, "Error: could not send text.");
+                        return 1;
+                    }
+                    if(send_text(opp_sock, "YOU WON!\nYour opponent couldn't guess your secret word.")){
+                        syslog(LOG_ERR, "Error: could not send text.");
+                        return 1;
+                    }
+                    if(!save_points(socket_to_name[opp_sock], 1)){
                         syslog(LOG_ERR, "Could not save player's %s points", socket_to_name[opp_sock]);
+                        return 1;
+                    }
 
                 }
 
