@@ -4,6 +4,7 @@
 #my
 daytime*
 build/
+built/
 merge_repo.sh
 full_code.txt
 ahdt*

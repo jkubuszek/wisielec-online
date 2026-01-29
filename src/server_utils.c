@@ -65,7 +65,7 @@ int save_points(const char *username, const int points) {
                     find = 1;
                     //return 1; 
                 }else{
-                    fprintf(tmp, "%s\n", line);
+                    fprintf(tmp, "%s", line);
                 }
                 
                 
@@ -296,8 +296,8 @@ int assign_to_room(int sock) {
         syslog(LOG_ERR, "Error: could not send text");
         return 1;
     }
-    return 2;
     close(sock);
+    return 2;
     }
 }
 
@@ -637,7 +637,7 @@ int handle_client_message(int sock) {
                     }
                     if(!save_points(socket_to_name[opp_sock], 1)){
                         syslog(LOG_ERR, "Could not save player's %s points", socket_to_name[opp_sock]);
-                        return 1;
+                        return 0;
                     }
 
                 }
