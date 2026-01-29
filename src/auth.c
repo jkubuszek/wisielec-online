@@ -2,10 +2,11 @@
 #include <stdio.h> // file operations
 #include <syslog.h> // system logs
 #include "auth.h"
+#include "server_utils.h"
 
 
-#define DB_FILE "users.csv"
-// #define DB_FILE "/var/lib/wisielec/users.csv"
+
+
 
 int register_player(const char *username, const char *password) {
     FILE *file;
@@ -14,7 +15,8 @@ int register_player(const char *username, const char *password) {
 
     //reject ';' and '\n'
     if (strchr(username, ';') || strchr(password, ';') || 
-        strchr(username, '\n') || strchr(password, '\n')) {
+        strchr(username, '\n') || strchr(password, '\n')||
+        !is_valid_ascii(username) || !is_valid_ascii(password)) {
         return -1;      
     }
     file = fopen(DB_FILE, "r");
@@ -47,6 +49,7 @@ int register_player(const char *username, const char *password) {
 
     fflush(file);
     fclose(file);
+
     return 1; 
 }
 
@@ -59,8 +62,6 @@ int authenticate_player(const char *username, const char *password) {
 
     char line[256];
     int auth_success = 0;
-
-    
 
     while (fgets(line, sizeof(line), file)) {
 

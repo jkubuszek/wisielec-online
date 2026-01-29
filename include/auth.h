@@ -1,6 +1,5 @@
 /**
  * @file auth.h
- * @author JK 
  * @brief this file handles aithentication functions
  * @date 2026-01-17
  */
