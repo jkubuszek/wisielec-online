@@ -148,7 +148,12 @@ int handle_server_message(int sockfd, int *game_started) {
             system("clear");
             printf("\n--- GAME STATUS ---\n");
             draw_hangman(state->lives);
-            printf("Secret word: %s\n", state->word_mask);
+            printf("Secret word: ");
+            //char st = state->word_mask;
+            for(int i=0; i < strlen(state->word_mask); i++){
+                printf("%c ",state->word_mask[i]);
+            }
+            printf("\n");
             printf("Lives left: %d / %d\n", state->lives, state->max_lives);
             printf("-------------------\n");
             printf("letters already used : ");
