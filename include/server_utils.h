@@ -55,13 +55,6 @@ int save_points(const char *username, const int points);
 int read_serv_points(PlayerScore *scores, const int size);
 
 /**
- * @brief function for creating a multicast socket for finding the server
- * 
- * @return int file descriptor number
- */
-int multicast_socket();
-
-/**
  * @brief function for handling a message from the client
  * 
  * @param sock source socket
