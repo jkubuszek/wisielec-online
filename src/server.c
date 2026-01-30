@@ -4,6 +4,7 @@
 #include        <netinet/in.h>  // sockaddr, inet
 #include        <arpa/inet.h>   // htons, htonl, inet_
 #include        <errno.h> // errno
+#include        <stdlib.h> // atoi
 #include        <stdio.h> // perror for daemon
 #include        <string.h> // str...
 #include 	    <unistd.h> // daemon, close
@@ -147,11 +148,13 @@ int main(int argc, char **argv){
                 if (epoll_ctl(epollfd, EPOLL_CTL_ADD, connfd, &ev) == -1){
                     syslog(LOG_ERR, "listen error : %s\n", strerror(errno));
                     return 1;
-	             }
-                else {
-                    syslog(LOG_INFO, "Client connected on socket %d\n", connfd);
-                    // assign_to_room(connfd);
-                }
+	            }
+                syslog(LOG_INFO, "Client connected on socket %d\n", connfd);
+                // if(assign_to_room(connfd) != 0){
+                //     syslog(LOG_INFO, "Could not assign player to a room (socket %d).\n", connfd);
+
+                // }
+                
             } else if (currfd == mcastfd) {
                 char buf[256];
                 struct sockaddr_in client_addr;

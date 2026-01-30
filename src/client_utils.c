@@ -111,7 +111,7 @@ void print_help() {
     printf("  /register <username> <password> - Create an account\n");
     // printf("  exit                           - Exit the game\n");
     printf("  /help                           - Display this help page\n");
-    printf("  /scoreboard                           - Display the scoreboard\n");
+    printf("  /scoreboard                     - Display the scoreboard\n");
 }
 
 int get_input(char *buffer, int size) {
@@ -171,7 +171,7 @@ int handle_server_message(int sockfd, int *game_started) {
                 printf("%s: %d pts\n", scores[i].username, scores[i].score);
             }
             printf("----------------------------------\n");
-            break;            
+            return 0;
         
         case MSG_PROMPT:
             return 0;

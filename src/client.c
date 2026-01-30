@@ -33,7 +33,7 @@ int main(int argc, char **argv)
         server_ip[sizeof(server_ip) - 1] = '\0';
     } else {
         if (!find_server(server_ip)) {
-            fprintf(stderr, "Could not find server automatically. Usage: %s <IPaddress>\n", argv[0]);
+            fprintf(stderr, "Could not find server automatically. Usage: %s <IPaddress> <Port (optional)>\n", argv[0]);
             return 1;
         }
     }
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
         
         if (FD_ISSET(sockfd, &readfds)) {
             if (handle_server_message(sockfd, &game_started) != 0) {
-                printf("Error: could not read message from server");
+                printf("Error: could not read message from server\n");
                 break;
             }
         }
