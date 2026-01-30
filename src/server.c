@@ -58,10 +58,22 @@ int main(int argc, char **argv){
         syslog(LOG_ERR, "SO_REUSEADDR setsockopt error : %s\n", strerror(errno));
     }
 
+    int port = PORT;
+    
+    if (argc == 2) {
+        int p = atoi(argv[1]);
+        if (p > 0 && p <= 65535) {
+            port = p;
+            syslog(LOG_INFO, "Server starting on custom port: %d", port);
+        } else {
+            fprintf(stderr, "Invalid port number. Using default: %d\n", PORT);
+        }
+    }
+
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr   = htonl(INADDR_ANY);
-	servaddr.sin_port   = htons(8080);	
+	servaddr.sin_port   = htons(port);	
 
     if (bind( listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0){
         syslog(LOG_ERR, "bind() error : %s\n", strerror(errno));

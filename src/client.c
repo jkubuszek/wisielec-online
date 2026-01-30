@@ -23,13 +23,14 @@ int main(int argc, char **argv)
     int					sockfd, err;
 	struct sockaddr_in	servaddr;
     char msg[1024];
-    char server_ip[INET_ADDRSTRLEN];
+    char server_ip[32];
     
     fd_set readfds;
     int max_sd;
     
-    if (argc == 2) {
-        strncpy(server_ip, argv[1], INET_ADDRSTRLEN);
+    if (argc >= 2) {
+        strncpy(server_ip, argv[1], sizeof(server_ip) - 1);
+        server_ip[sizeof(server_ip) - 1] = '\0';
     } else {
         if (!find_server(server_ip)) {
             fprintf(stderr, "Could not find server automatically. Usage: %s <IPaddress>\n", argv[0]);
@@ -44,8 +45,15 @@ int main(int argc, char **argv)
     hints.ai_family = AF_INET;       
     hints.ai_socktype = SOCK_STREAM; 
 
-    char port_str[6]; //convert port to string for getaddrinfo
-    snprintf(port_str, sizeof(port_str), "%d", PORT); 
+    char *port_str;
+    char default_port[6];
+
+    if (argc == 3) {
+        port_str = argv[2];
+    } else {
+        snprintf(default_port, sizeof(default_port), "%d", PORT);
+        port_str = default_port;
+    }
 
     int s = getaddrinfo(server_ip, port_str, &hints, &result);
     if (s != 0) {
