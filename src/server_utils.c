@@ -574,22 +574,32 @@ int handle_client_message(int sock) {
         if (p_idx != room->current_setter) {
             Guess *p = (Guess*)buffer;
             char g = p->letter;
-            int hit = 0;
-
-            for(int i=0; i<strlen(room->game.word); i++) {
-                if (room->game.word[i] == g) {
-                    room->game.mask[i] = g;
-                    hit = 1;
+            int repeat = 0;
+            for(int i=0; i < strlen(room->letters_used); i++){
+                if (room->letters_used[i] == g){
+                    repeat = 1;
+                    break;
                 }
             }
-            if (!hit){
-                room->game.lives--;
-            }
+            if(!repeat){
 
-            GameState state;
-            if(strlen(room->letters_used) < 31){
-                room->letters_used[strlen(room->letters_used)] = g;
+                int hit = 0;
+
+                for(int i=0; i<strlen(room->game.word); i++) {
+                    if (room->game.word[i] == g) {
+                        room->game.mask[i] = g;
+                        hit = 1;
+                    }
+                }
+                if (!hit){
+                    room->game.lives--;
+                }
+
+                if(strlen(room->letters_used) < 31){
+                    room->letters_used[strlen(room->letters_used)] = g;
+                }
             }
+            GameState state;
             strcpy(state.word_mask, room->game.mask);
             state.lives = room->game.lives;
             state.max_lives = 8;
