@@ -433,9 +433,9 @@ int handle_client_message(int sock) {
                 int e = assign_to_room(sock);
                 if (e > 0){
                     if (e == 1){
-                        syslog(LOG_ERR, "Player %s can't assign to room because error\n", socket_to_name[sock]);
+                        syslog(LOG_ERR, "Error: could not assign player %s to room\n", socket_to_name[sock]);
                     }else{
-                        syslog(LOG_ERR, "Player %s can't assign to room because server is full\n", socket_to_name[sock]);
+                        syslog(LOG_ERR, "Could not assign player %s to room, server is full\n", socket_to_name[sock]);
                     }
                 }
             } else {
@@ -533,8 +533,6 @@ int handle_client_message(int sock) {
             }
 
             room->game.word[len] = '\0';
-            // strcpy(room->game.word, p->word);
-            
             
             int word_len = strlen(room->game.word);
             for(int i=0; i<word_len; i++){
@@ -660,7 +658,7 @@ int handle_client_message(int sock) {
                 
                 int new_setter = room->players[room->current_setter];
                 int new_guesser = room->players[(room->current_setter == 0) ? 1 : 0];
-
+                
                 if(send_text(new_setter, "Now it is your turn to set the secret word:")){
                     syslog(LOG_ERR, "Error: could not send text");
                     return 1;
@@ -669,7 +667,8 @@ int handle_client_message(int sock) {
                     syslog(LOG_ERR, "Error: could not send packet");
                     return 1;
                 }
-                if(send_text(new_guesser, "Wait for the opponent to set the secret word...")){
+                snprintf(msg, sizeof(msg), "Wait for the opponent %s to set the secret word...", socket_to_name[new_setter]);
+                if(send_text(new_guesser, msg)){
                     syslog(LOG_ERR, "Error: could not send packet");
                     return 1;
                 }
