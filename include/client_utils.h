@@ -45,6 +45,6 @@ int get_input(char *buffer, int size);
  * 
  * @param sockfd source socket
  * @param game_started 1 if game has started, 0 otherwise
- * @return int error code: 0 - success, 1 - 
+ * @return int error code: 0 - success, 1 - errror
  */
 int handle_server_message(int sockfd, int *game_started);

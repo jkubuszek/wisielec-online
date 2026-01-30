@@ -95,7 +95,7 @@ int main(int argc, char **argv)
 
         
         if (FD_ISSET(sockfd, &readfds)) {
-            if (handle_server_message(sockfd, &game_started) == -1) {
+            if (handle_server_message(sockfd, &game_started) != 0) {
                 printf("Error: could not read message from server");
                 break;
             }

@@ -137,11 +137,11 @@ int handle_server_message(int sockfd, int *game_started) {
     switch(type){
         case MSG_TEXT:
             printf("server: %s\n", response);
-            break;
+            return 0;
         
         case MSG_GAME_START:
             *game_started = 1;
-            break;
+            return 0;
 
         case MSG_GAME_STATE: 
             GameState *state = (GameState*)response;
@@ -162,7 +162,7 @@ int handle_server_message(int sockfd, int *game_started) {
                 // (i == strlen(state->letters)) ? printf("\n") : NULL;
             }
             printf("\n");
-            break;
+            return 0;
         case MSG_SCOREBOARD:
             int count = data_len / sizeof(PlayerScore);
             PlayerScore *scores = (PlayerScore*)response;
@@ -174,7 +174,7 @@ int handle_server_message(int sockfd, int *game_started) {
             break;            
         
         case MSG_PROMPT:
-            break;
+            return 0;
     }
-    return 0;
+    return 1;
 }
