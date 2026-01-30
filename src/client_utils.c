@@ -146,7 +146,7 @@ int handle_server_message(int sockfd, int *game_started) {
         case MSG_GAME_STATE: 
             GameState *state = (GameState*)response;
             system("clear");
-            printf("\n--- GAME STATUS ---\n");
+            printf("\n                              --- GAME STATUS ---\n");
             draw_hangman(state->lives);
             printf("Secret word: ");
             //char st = state->word_mask;

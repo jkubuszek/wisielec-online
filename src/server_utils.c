@@ -557,7 +557,8 @@ int handle_client_message(int sock) {
                 syslog(LOG_ERR, "Error: could not send packet");
                 return 1;
             }
-            if(send_text(sock, "Word accepted, now, the opponent starts guessing.")){
+            snprintf(msg, sizeof(msg), "Word accepted, now, the opponent: %s starts guessing.", socket_to_name[opp_sock]);
+            if(send_text(sock, msg)){
                 syslog(LOG_ERR, "Error: could not send text");
                 return 1;
             }
@@ -565,7 +566,8 @@ int handle_client_message(int sock) {
                 syslog(LOG_ERR, "Error: could not send packet");
                 return 1;
             }
-            if(send_text(opp_sock, "Your opponent has set the word. Now, start guessing!")){
+            snprintf(msg, sizeof(msg), "Your opponent: %s has set the word. Now, start guessing!", socket_to_name[sock]);
+            if(send_text(opp_sock, msg)){
                 syslog(LOG_ERR, "Error: could not send text");
                 return 1;
             }
